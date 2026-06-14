@@ -1,4 +1,25 @@
+"""Persistensi tiket Vilog.
+
+Field sensitif (email, password, kode backup akun Roblox customer) DIENKRIPSI
+saat ditulis ke DB dan didekripsi saat dibaca — lihat utils/secret_box.py. Ini
+mencegah kredensial tersimpan plaintext di midman.db (yang juga di-backup utuh
+ke channel Discord). Baris lama yang masih plaintext tetap terbaca (backward
+compatible) dan akan ikut terenkripsi saat tiket-nya disimpan ulang.
+"""
 from utils.db import get_conn
+from utils import secret_box
+
+# Kolom yang berisi data sensitif & wajib dienkripsi at-rest.
+_SENSITIVE = ("username_roblox", "password", "email", "backup_codes")
+
+
+def _enc(value):
+    return secret_box.encrypt(value if value is not None else "")
+
+
+def _dec(value):
+    return secret_box.decrypt(value)
+
 
 def load_vilog_tickets():
     conn = get_conn()
@@ -16,13 +37,14 @@ def load_vilog_tickets():
     tickets = {}
     for row in rows:
         keys = row.keys()
+        # Backward compat: baris lama mungkin menaruh email di username_roblox.
+        email = _dec(row['email']) or _dec(row['username_roblox'])
         tickets[row['channel_id']] = {
             'channel_id': row['channel_id'],
             'user_id': row['user_id'],
-            # Backward compat: older rows might store email in username_roblox
-            'email': row['email'] or row['username_roblox'],
-            'password': row['password'],
-            'backup_codes': row['backup_codes'] or '',
+            'email': email,
+            'password': _dec(row['password']),
+            'backup_codes': _dec(row['backup_codes']) or '',
             'premium': bool(row['premium']) if row['premium'] is not None else False,
             'boost': {'nama': row['boost_nama'], 'robux': row['boost_robux']},
             'metode': row['metode'],
@@ -49,10 +71,10 @@ def save_vilog_ticket(ticket):
     ''', (
         ticket['channel_id'],
         ticket['user_id'],
-        ticket.get('username_roblox'),
-        ticket.get('password'),
-        ticket.get('email'),
-        ticket.get('backup_codes'),
+        _enc(ticket.get('username_roblox')),
+        _enc(ticket.get('password')),
+        _enc(ticket.get('email')),
+        _enc(ticket.get('backup_codes')),
         1 if ticket.get('premium') else 0,
         ticket['boost']['nama'],
         ticket['boost']['robux'],
@@ -67,6 +89,11 @@ def save_vilog_ticket(ticket):
     conn.close()
 
 def delete_vilog_ticket(channel_id):
+    """Hapus tiket Vilog (sekaligus memusnahkan kredensial terenkripsinya).
+
+    Dipanggil saat tiket selesai (`!vilogdone`) atau dibatalkan (`!vilogbatal`),
+    juga oleh pembersihan tiket yatim — lihat cogs/vilog.py.
+    """
     conn = get_conn()
     c = conn.cursor()
     c.execute('DELETE FROM vilog_tickets WHERE channel_id = ?', (channel_id,))

@@ -10,7 +10,7 @@ import datetime
 import re
 
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 
 from utils.config import (
     ADMIN_ROLE_ID,
@@ -272,6 +272,38 @@ class Vilog(commands.Cog):
         raw_msg = _get_setting("vilog_catalog_message_id")
         if raw_msg and raw_msg.isdigit():
             self.catalog_message_id = int(raw_msg)
+
+    async def cog_load(self):
+        # Mulai pembersihan tiket yatim (channel sudah hilang) agar kredensial
+        # tidak menetap di DB bila channel dihapus manual tanpa !vilogdone/batal.
+        self.purge_orphan_tickets.start()
+
+    async def cog_unload(self):
+        self.purge_orphan_tickets.cancel()
+
+    @tasks.loop(hours=6)
+    async def purge_orphan_tickets(self):
+        """Hapus baris tiket Vilog yang channel-nya sudah tidak ada (auto-purge).
+
+        Tiket yang ditutup lewat !vilogdone/!vilogbatal sudah dihapus saat itu.
+        Loop ini menangani sisa: channel yang dihapus manual sehingga kredensial
+        (walau terenkripsi) tidak tertinggal selamanya di database.
+        """
+        guild = self.bot.get_guild(GUILD_ID)
+        if not guild:
+            return
+        for cid in list(self.active_tickets.keys()):
+            if guild.get_channel(cid) is None:
+                try:
+                    delete_vilog_ticket(cid)
+                    self.active_tickets.pop(cid, None)
+                    print(f"[Vilog] Auto-purge tiket yatim (channel {cid} hilang).")
+                except Exception as e:
+                    print(f"[Vilog] Auto-purge gagal untuk {cid}: {e}")
+
+    @purge_orphan_tickets.before_loop
+    async def _before_purge(self):
+        await self.bot.wait_until_ready()
 
     async def refresh_embed(self, guild: discord.Guild):
         """Refresh catalog embed (dipanggil dari command admin atau cog lain)."""
@@ -566,4 +598,9 @@ async def setup(bot: commands.Bot):
     cog = Vilog(bot)
     await bot.add_cog(cog)
     bot.add_view(VilogCatalogView(cog))
-    print("Cog Vilog siap.")
+    from utils import secret_box
+    if secret_box.enabled():
+        print("Cog Vilog siap. (enkripsi kredensial: AKTIF)")
+    else:
+        print("Cog Vilog siap. (PERINGATAN: enkripsi kredensial NONAKTIF — "
+              "set VILOG_SECRET_KEY atau TOKEN di .env)")
