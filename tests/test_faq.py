@@ -47,3 +47,22 @@ def test_save_load_round_trip(db):
     loaded = f.load_faq()
     assert any(e["id"] == "x" for e in loaded)
     assert f.match_question("ini tes ya", loaded)["id"] == "x"
+
+
+
+def test_match_question_typo_tolerant():
+    """Auto-CS harus tahan salah ketik umum (fuzzy), tanpa salah jawab.
+
+    Berlaku untuk kedua jalur: rapidfuzz (runtime) maupun fallback difflib (CI).
+    """
+    import utils.faq as f
+    entries = f.default_faq()
+    # typo umum -> tetap kena entri yang benar
+    assert f.match_question("min cara oder gimana", entries)["id"] == "cara_order"
+    assert f.match_question("gimana cara odernya", entries)["id"] == "cara_order"
+    assert f.match_question("pembayran pake apa", entries)["id"] == "pembayaran"
+    assert f.match_question("garansy nya gmn", entries)["id"] == "garansi"
+    # pertanyaan tak relevan -> tetap tidak menjawab (no false positive)
+    assert f.match_question("apa kabar bro", entries) is None
+    assert f.match_question("makan siang yuk", entries) is None
+    assert f.match_question("besok libur ga", entries) is None
