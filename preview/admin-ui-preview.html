@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="id" data-theme="dark" data-accent="indigo">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Preview Admin Panel 2026 — Cellyn Store</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   PREVIEW DESAIN ADMIN PANEL 2026 (glassmorphism + bento grid)
+   File statis, data dummy. Ganti tema & warna di panel kanan atas.
+   ============================================================ */
+
+/* ---- Tema TERANG ---- */
+:root{
+  --bg-base:#e9edf6;
+  --text:#0f172a; --text2:#475569; --muted:#8a96ab;
+  --glass:rgba(255,255,255,.62);
+  --glass-strong:rgba(255,255,255,.78);
+  --border:rgba(255,255,255,.75);
+  --border-soft:rgba(15,23,42,.08);
+  --shadow:0 10px 34px rgba(2,6,23,.10), 0 2px 8px rgba(2,6,23,.05);
+  --shadow-hover:0 18px 48px rgba(2,6,23,.16);
+  --mesh-1:color-mix(in srgb, var(--accent) 32%, transparent);
+  --mesh-2:color-mix(in srgb, var(--accent2) 28%, transparent);
+  --mesh-3:rgba(255,255,255,.6);
+  --track:rgba(15,23,42,.07);
+}
+/* ---- Tema GELAP ---- */
+[data-theme="dark"]{
+  --bg-base:#080b16;
+  --text:#eaf0fb; --text2:#aab4c9; --muted:#6a7488;
+  --glass:rgba(20,26,42,.55);
+  --glass-strong:rgba(24,31,50,.72);
+  --border:rgba(255,255,255,.10);
+  --border-soft:rgba(255,255,255,.06);
+  --shadow:0 18px 44px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.05);
+  --shadow-hover:0 24px 60px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.08);
+  --mesh-1:color-mix(in srgb, var(--accent) 55%, transparent);
+  --mesh-2:color-mix(in srgb, var(--accent2) 45%, transparent);
+  --mesh-3:rgba(80,120,255,.10);
+  --track:rgba(255,255,255,.08);
+}
+
+/* ---- Pilihan WARNA AKSEN ---- */
+[data-accent="blue"]   {--accent:#2563eb;--accent2:#1d4ed8;}
+[data-accent="indigo"] {--accent:#6366f1;--accent2:#a855f7;}
+[data-accent="emerald"]{--accent:#10b981;--accent2:#0d9488;}
+[data-accent="sunset"] {--accent:#f97316;--accent2:#f43f5e;}
+[data-accent="rose"]   {--accent:#f43f5e;--accent2:#ec4899;}
+[data-accent="cyan"]   {--accent:#06b6d4;--accent2:#3b82f6;}
+:root{
+  --accent-grad:linear-gradient(135deg,var(--accent),var(--accent2));
+  --accent-soft:color-mix(in srgb, var(--accent) 14%, transparent);
+  --accent-glow:color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{
+  font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  color:var(--text);
+  background:var(--bg-base);
+  min-height:100vh; display:flex;
+  -webkit-font-smoothing:antialiased;
+  position:relative; overflow-x:hidden;
+}
+/* Mesh gradient background */
+body::before{
+  content:""; position:fixed; inset:-20% -10% auto -10%; height:120%; z-index:-1;
+  background:
+    radial-gradient(45% 40% at 12% 8%,  var(--mesh-1) 0%, transparent 60%),
+    radial-gradient(40% 45% at 88% 4%,  var(--mesh-2) 0%, transparent 60%),
+    radial-gradient(50% 40% at 70% 90%, var(--mesh-1) 0%, transparent 65%),
+    radial-gradient(40% 35% at 20% 95%, var(--mesh-3) 0%, transparent 60%);
+  filter:saturate(1.05);
+}
+h1,h2,h3,h4{font-family:'Plus Jakarta Sans','Inter',sans-serif;letter-spacing:-.02em;}
+
+/* ---------- SIDEBAR (glass) ---------- */
+.sidebar{
+  width:248px; flex-shrink:0; padding:1.4rem 1rem; height:100vh; position:sticky; top:0;
+  background:var(--glass); backdrop-filter:blur(22px) saturate(1.4);
+  -webkit-backdrop-filter:blur(22px) saturate(1.4);
+  border-right:1px solid var(--border-soft);
+  display:flex; flex-direction:column; gap:.3rem;
+}
+.brand{display:flex;align-items:center;gap:.7rem;padding:.3rem .6rem 1.3rem;}
+.brand .logo{
+  width:38px;height:38px;border-radius:12px;background:var(--accent-grad);
+  display:grid;place-items:center;color:#fff;font-weight:800;font-size:1.1rem;
+  box-shadow:0 6px 18px var(--accent-glow);
+}
+.brand b{font-size:1.05rem;font-weight:800;}
+.brand span{color:var(--muted);font-size:.7rem;display:block;font-weight:500;}
+.nav-label{font-size:.68rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);
+  padding:.9rem .8rem .35rem;font-weight:700;}
+.nav-item{
+  display:flex;align-items:center;gap:.75rem;padding:.62rem .8rem;border-radius:11px;
+  color:var(--text2);font-size:.86rem;font-weight:500;cursor:pointer;transition:.16s;
+}
+.nav-item svg{width:18px;height:18px;stroke-width:2;}
+.nav-item:hover{background:var(--track);color:var(--text);}
+.nav-item.active{
+  color:#fff;background:var(--accent-grad);font-weight:600;
+  box-shadow:0 8px 20px var(--accent-glow);
+}
+.sidebar-foot{margin-top:auto;}
+
+/* ---------- MAIN ---------- */
+.main{flex:1;min-width:0;padding:1.5rem 2rem 3rem;}
+.topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.6rem;gap:1rem;flex-wrap:wrap;}
+.topbar h1{font-size:1.55rem;}
+.topbar p{color:var(--muted);font-size:.85rem;margin-top:.15rem;}
+.search{
+  display:flex;align-items:center;gap:.5rem;background:var(--glass);
+  backdrop-filter:blur(14px);border:1px solid var(--border-soft);
+  border-radius:12px;padding:.55rem .9rem;color:var(--muted);font-size:.84rem;min-width:200px;
+}
+
+/* ---------- BENTO GRID ---------- */
+.bento{display:grid;grid-template-columns:repeat(4,1fr);gap:18px;}
+.card{
+  background:var(--glass); backdrop-filter:blur(20px) saturate(1.3);
+  -webkit-backdrop-filter:blur(20px) saturate(1.3);
+  border:1px solid var(--border); border-radius:20px; padding:1.3rem 1.4rem;
+  box-shadow:var(--shadow); transition:transform .2s, box-shadow .2s;
+  position:relative; overflow:hidden;
+}
+.card:hover{transform:translateY(-3px);box-shadow:var(--shadow-hover);}
+.col2{grid-column:span 2;} .col3{grid-column:span 3;} .col4{grid-column:span 4;}
+.row2{grid-row:span 2;}
+
+/* stat card */
+.stat .top{display:flex;justify-content:space-between;align-items:flex-start;}
+.stat-ic{width:44px;height:44px;border-radius:13px;display:grid;place-items:center;
+  background:var(--accent-soft);color:var(--accent);}
+.stat-ic svg{width:22px;height:22px;stroke-width:2;}
+.stat .label{color:var(--muted);font-size:.78rem;font-weight:600;margin-top:1rem;}
+.stat .value{font-size:1.85rem;font-weight:800;letter-spacing:-.03em;margin-top:.15rem;
+  font-family:'Plus Jakarta Sans',sans-serif;}
+.trend{font-size:.74rem;font-weight:700;padding:.18rem .5rem;border-radius:20px;display:inline-flex;gap:.2rem;align-items:center;}
+.trend.up{color:#10b981;background:color-mix(in srgb,#10b981 14%,transparent);}
+.trend.down{color:#f43f5e;background:color-mix(in srgb,#f43f5e 14%,transparent);}
+
+.card h3{font-size:1rem;margin-bottom:.2rem;}
+.card .sub{color:var(--muted);font-size:.78rem;margin-bottom:1.1rem;}
+
+/* bar chart */
+.bars{display:flex;align-items:flex-end;gap:10px;height:170px;padding-top:.5rem;}
+.bar{flex:1;border-radius:8px 8px 4px 4px;background:var(--accent-grad);opacity:.92;
+  position:relative;transition:.2s;min-height:8px;}
+.bar:hover{opacity:1;filter:brightness(1.1);}
+.bar span{position:absolute;bottom:-22px;left:0;right:0;text-align:center;font-size:.68rem;color:var(--muted);}
+
+/* donut */
+.donut-wrap{display:flex;align-items:center;gap:1.4rem;}
+.donut{width:128px;height:128px;border-radius:50%;flex-shrink:0;
+  background:conic-gradient(var(--accent) 0 62%, var(--accent2) 62% 82%, var(--track) 82% 100%);
+  display:grid;place-items:center;mask:radial-gradient(circle 40px at center,transparent 98%,#000 100%);
+  -webkit-mask:radial-gradient(circle 40px at center,transparent 98%,#000 100%);}
+.legend li{list-style:none;display:flex;align-items:center;gap:.55rem;font-size:.82rem;color:var(--text2);margin-bottom:.6rem;}
+.dot{width:10px;height:10px;border-radius:3px;}
+
+/* table */
+table{width:100%;border-collapse:collapse;}
+th{text-align:left;padding:.55rem .4rem;font-size:.68rem;text-transform:uppercase;letter-spacing:.04em;
+  color:var(--muted);font-weight:700;border-bottom:1px solid var(--border-soft);}
+td{padding:.7rem .4rem;font-size:.86rem;border-bottom:1px solid var(--border-soft);}
+tbody tr:last-child td{border-bottom:none;}
+tbody tr{transition:.12s;}
+tbody tr:hover td{background:var(--track);}
+.avatar{width:30px;height:30px;border-radius:9px;background:var(--accent-grad);color:#fff;
+  display:inline-grid;place-items:center;font-size:.72rem;font-weight:700;margin-right:.55rem;vertical-align:middle;}
+.badge{font-size:.72rem;font-weight:700;padding:.22rem .6rem;border-radius:20px;}
+.badge.ok{color:#10b981;background:color-mix(in srgb,#10b981 14%,transparent);}
+.badge.wait{color:#f59e0b;background:color-mix(in srgb,#f59e0b 16%,transparent);}
+.badge.cancel{color:#f43f5e;background:color-mix(in srgb,#f43f5e 14%,transparent);}
+
+/* buttons */
+.btns{display:flex;gap:.6rem;flex-wrap:wrap;}
+.btn{padding:.6rem 1.05rem;border-radius:11px;font-size:.84rem;font-weight:600;cursor:pointer;
+  border:1px solid transparent;font-family:inherit;transition:.16s;display:inline-flex;align-items:center;gap:.4rem;}
+.btn-primary{background:var(--accent-grad);color:#fff;box-shadow:0 8px 20px var(--accent-glow);}
+.btn-primary:hover{filter:brightness(1.08);transform:translateY(-1px);}
+.btn-ghost{background:var(--glass);color:var(--text2);border-color:var(--border-soft);}
+.btn-ghost:hover{color:var(--text);}
+.qa{display:flex;flex-direction:column;gap:.6rem;}
+.qa-item{display:flex;align-items:center;gap:.8rem;padding:.7rem .8rem;border-radius:12px;
+  background:var(--track);cursor:pointer;transition:.15s;font-size:.85rem;font-weight:500;}
+.qa-item:hover{background:var(--accent-soft);color:var(--accent);}
+.qa-ic{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:var(--accent-soft);color:var(--accent);}
+.qa-ic svg{width:17px;height:17px;}
+
+/* ---------- CONTROL PANEL (preview only) ---------- */
+.ctrl{position:fixed;top:18px;right:18px;z-index:99;background:var(--glass-strong);
+  backdrop-filter:blur(24px) saturate(1.5);-webkit-backdrop-filter:blur(24px) saturate(1.5);
+  border:1px solid var(--border);border-radius:18px;padding:1rem 1.1rem;box-shadow:var(--shadow);
+  width:230px;}
+.ctrl h4{font-size:.82rem;margin-bottom:.7rem;display:flex;align-items:center;gap:.4rem;}
+.ctrl .lbl{font-size:.68rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:700;margin:.7rem 0 .45rem;}
+.swatches{display:flex;gap:.5rem;flex-wrap:wrap;}
+.sw{width:30px;height:30px;border-radius:9px;cursor:pointer;border:2px solid transparent;transition:.15s;}
+.sw:hover{transform:scale(1.1);}
+.sw.sel{border-color:var(--text);box-shadow:0 0 0 2px var(--bg-base);}
+.theme-toggle{display:flex;gap:.4rem;background:var(--track);border-radius:11px;padding:.25rem;}
+.theme-toggle button{flex:1;border:none;background:none;padding:.4rem;border-radius:8px;cursor:pointer;
+  font-family:inherit;font-size:.78rem;font-weight:600;color:var(--text2);transition:.15s;}
+.theme-toggle button.on{background:var(--accent-grad);color:#fff;}
+.tip{font-size:.7rem;color:var(--muted);margin-top:.8rem;line-height:1.5;}
+
+@media(max-width:980px){.sidebar{display:none;}.bento{grid-template-columns:repeat(2,1fr);}.col3,.col4{grid-column:span 2;}.main{padding:1.2rem;}}
+</style>
+</head>
+<body>
+
+<!-- ============ SIDEBAR ============ -->
+<aside class="sidebar">
+  <div class="brand">
+    <div class="logo">C</div>
+    <div><b>Cellyn Store</b><span>Admin Panel</span></div>
+  </div>
+  <div class="nav-label">Menu</div>
+  <div class="nav-item active">
+    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l9-9 9 9M5 10v10h14V10"/></svg> Dashboard
+  </div>
+  <div class="nav-item">
+    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/></svg> Pesanan
+  </div>
+  <div class="nav-item">
+    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-1.13a4 4 0 10-4-4 4 4 0 004 4z"/></svg> Pelanggan
+  </div>
+  <div class="nav-item">
+    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 7h16M4 12h16M4 17h10"/></svg> Katalog
+  </div>
+  <div class="nav-item">
+    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> Antrian
+  </div>
+  <div class="nav-label">Sistem</div>
+  <div class="nav-item">
+    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10.3 3.3a2 2 0 013.4 0l.6 1a2 2 0 002 1l1.1-.1a2 2 0 012 3.4l-.6 1a2 2 0 000 2.2l.6 1a2 2 0 01-2 3.4l-1.1-.1a2 2 0 00-2 1l-.6 1a2 2 0 01-3.4 0l-.6-1a2 2 0 00-2-1l-1.1.1a2 2 0 01-2-3.4l.6-1a2 2 0 000-2.2l-.6-1a2 2 0 012-3.4l1.1.1a2 2 0 002-1l.6-1z"/><circle cx="12" cy="12" r="3"/></svg> Pengaturan
+  </div>
+  <div class="sidebar-foot nav-item">
+    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 8H5a2 2 0 01-2-2V6a2 2 0 012-2h8"/></svg> Keluar
+  </div>
+</aside>
+
+<!-- ============ MAIN ============ -->
+<main class="main">
+  <div class="topbar">
+    <div>
+      <h1>Dashboard</h1>
+      <p>Selamat datang kembali 👋 Ringkasan toko hari ini.</p>
+    </div>
+    <div class="search">
+      <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path stroke-linecap="round" d="M21 21l-4-4"/></svg>
+      Cari pesanan, pelanggan…
+    </div>
+  </div>
+
+  <div class="bento">
+    <!-- Stat cards -->
+    <div class="card stat">
+      <div class="top">
+        <div class="stat-ic"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.7 0-3 .9-3 2s1.3 2 3 2 3 .9 3 2-1.3 2-3 2m0-8V6m0 12v-2m0-8c1.1 0 2 .4 2.6 1M12 16c-1.1 0-2-.4-2.6-1"/></svg></div>
+        <span class="trend up">▲ 12%</span>
+      </div>
+      <div class="label">Pendapatan (30h)</div>
+      <div class="value">Rp 18,4jt</div>
+    </div>
+    <div class="card stat">
+      <div class="top">
+        <div class="stat-ic"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/></svg></div>
+        <span class="trend up">▲ 8%</span>
+      </div>
+      <div class="label">Pesanan</div>
+      <div class="value">342</div>
+    </div>
+    <div class="card stat">
+      <div class="top">
+        <div class="stat-ic"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-1.13a4 4 0 10-4-4 4 4 0 004 4z"/></svg></div>
+        <span class="trend up">▲ 5%</span>
+      </div>
+      <div class="label">Pelanggan</div>
+      <div class="value">1,209</div>
+    </div>
+    <div class="card stat">
+      <div class="top">
+        <div class="stat-ic"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M11.5 3.5l2.3 4.7 5.2.8-3.8 3.7.9 5.2-4.6-2.4-4.6 2.4.9-5.2L4 9l5.2-.8z"/></svg></div>
+        <span class="trend down">▼ 1%</span>
+      </div>
+      <div class="label">Rating Toko</div>
+      <div class="value">4.9</div>
+    </div>
+
+    <!-- Chart (bar) -->
+    <div class="card col2 row2">
+      <h3>Penjualan 7 Hari</h3>
+      <div class="sub">Total transaksi per hari</div>
+      <div class="bars">
+        <div class="bar" style="height:55%"><span>Sen</span></div>
+        <div class="bar" style="height:72%"><span>Sel</span></div>
+        <div class="bar" style="height:48%"><span>Rab</span></div>
+        <div class="bar" style="height:88%"><span>Kam</span></div>
+        <div class="bar" style="height:66%"><span>Jum</span></div>
+        <div class="bar" style="height:100%"><span>Sab</span></div>
+        <div class="bar" style="height:79%"><span>Min</span></div>
+      </div>
+    </div>
+
+    <!-- Donut -->
+    <div class="card col2">
+      <h3>Layanan Terlaris</h3>
+      <div class="sub">Distribusi 30 hari</div>
+      <div class="donut-wrap">
+        <div class="donut"></div>
+        <ul class="legend">
+          <li><span class="dot" style="background:var(--accent)"></span> Robux — 62%</li>
+          <li><span class="dot" style="background:var(--accent2)"></span> Mobile Legends — 20%</li>
+          <li><span class="dot" style="background:var(--track)"></span> Lainnya — 18%</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Quick actions -->
+    <div class="card col2">
+      <h3>Aksi Cepat</h3>
+      <div class="sub">Pintasan yang sering dipakai</div>
+      <div class="qa">
+        <div class="qa-item"><div class="qa-ic"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" d="M12 5v14M5 12h14"/></svg></div> Tambah produk baru</div>
+        <div class="qa-item"><div class="qa-ic"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4h16v12H5.2L4 18z"/></svg></div> Edit teks &amp; embed</div>
+        <div class="qa-item"><div class="qa-ic"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg></div> Atur jam buka toko</div>
+      </div>
+    </div>
+
+    <!-- Recent orders table -->
+    <div class="card col3">
+      <h3>Pesanan Terbaru</h3>
+      <div class="sub">5 transaksi terakhir</div>
+      <table>
+        <thead><tr><th>Pelanggan</th><th>Layanan</th><th>Nominal</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td><span class="avatar">RA</span>Rizky A.</td><td>Robux 1000</td><td>Rp 95.000</td><td><span class="badge ok">Selesai</span></td></tr>
+          <tr><td><span class="avatar">DW</span>Dewi W.</td><td>ML Diamond</td><td>Rp 50.000</td><td><span class="badge wait">Proses</span></td></tr>
+          <tr><td><span class="avatar">BS</span>Bagus S.</td><td>Vilog 500</td><td>Rp 48.000</td><td><span class="badge ok">Selesai</span></td></tr>
+          <tr><td><span class="avatar">NK</span>Nadia K.</td><td>Nitro 1bln</td><td>Rp 45.000</td><td><span class="badge cancel">Batal</span></td></tr>
+          <tr><td><span class="avatar">FH</span>Fahmi H.</td><td>Robux 2000</td><td>Rp 188.000</td><td><span class="badge ok">Selesai</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Store status + buttons -->
+    <div class="card">
+      <h3>Status Toko</h3>
+      <div class="sub">Kontrol cepat</div>
+      <div style="display:flex;align-items:center;gap:.6rem;margin:.4rem 0 1.1rem;">
+        <span class="badge ok" style="font-size:.8rem;">● Buka</span>
+        <span style="color:var(--muted);font-size:.8rem;">09.00 – 23.00</span>
+      </div>
+      <div class="btns" style="flex-direction:column;align-items:stretch;">
+        <button class="btn btn-primary">Tutup Toko</button>
+        <button class="btn btn-ghost">Edit Jam Buka</button>
+      </div>
+    </div>
+  </div>
+</main>
+
+<!-- ============ CONTROL PANEL (preview only) ============ -->
+<div class="ctrl">
+  <h4>🎨 Preview Tampilan</h4>
+  <div class="lbl">Tema</div>
+  <div class="theme-toggle" id="themeToggle">
+    <button data-theme="light">☀️ Terang</button>
+    <button data-theme="dark" class="on">🌙 Gelap</button>
+  </div>
+  <div class="lbl">Warna Aksen</div>
+  <div class="swatches" id="swatches">
+    <div class="sw" data-accent="blue"    title="Biru"          style="background:linear-gradient(135deg,#2563eb,#1d4ed8)"></div>
+    <div class="sw sel" data-accent="indigo" title="Indigo–Violet" style="background:linear-gradient(135deg,#6366f1,#a855f7)"></div>
+    <div class="sw" data-accent="emerald" title="Emerald"       style="background:linear-gradient(135deg,#10b981,#0d9488)"></div>
+    <div class="sw" data-accent="sunset"  title="Sunset"        style="background:linear-gradient(135deg,#f97316,#f43f5e)"></div>
+    <div class="sw" data-accent="rose"    title="Rose–Pink"     style="background:linear-gradient(135deg,#f43f5e,#ec4899)"></div>
+    <div class="sw" data-accent="cyan"    title="Cyan–Biru"     style="background:linear-gradient(135deg,#06b6d4,#3b82f6)"></div>
+  </div>
+  <div class="tip">Klik warna &amp; tema untuk lihat kombinasinya. Ini contoh statis (data dummy).</div>
+</div>
+
+<script>
+  const html = document.documentElement;
+  // Tema
+  document.querySelectorAll('#themeToggle button').forEach(b=>{
+    b.onclick=()=>{
+      html.setAttribute('data-theme', b.dataset.theme);
+      document.querySelectorAll('#themeToggle button').forEach(x=>x.classList.remove('on'));
+      b.classList.add('on');
+    };
+  });
+  // Warna aksen
+  document.querySelectorAll('#swatches .sw').forEach(s=>{
+    s.onclick=()=>{
+      html.setAttribute('data-accent', s.dataset.accent);
+      document.querySelectorAll('#swatches .sw').forEach(x=>x.classList.remove('sel'));
+      s.classList.add('sel');
+    };
+  });
+</script>
+</body>
+</html>
