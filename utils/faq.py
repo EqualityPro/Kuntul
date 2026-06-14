@@ -171,17 +171,48 @@ def render_text(text, store_name):
 
 _WORD_RE = re.compile(r"[a-z0-9]+")
 
+# Pencocokan fuzzy (toleran salah ketik) untuk Auto-CS. Pakai rapidfuzz bila
+# tersedia (lebih akurat); kalau tidak, fallback ke difflib bawaan Python supaya
+# tetap jalan di lingkungan tanpa rapidfuzz (mis. CI yang hanya install pytest).
+try:
+    from rapidfuzz import fuzz as _fuzz
+
+    def _ratio(a, b):
+        return _fuzz.ratio(a, b)
+
+    def _partial(a, b):
+        return _fuzz.partial_ratio(a, b)
+except Exception:  # pragma: no cover - jalur fallback
+    import difflib as _difflib
+
+    def _ratio(a, b):
+        return _difflib.SequenceMatcher(None, a, b).ratio() * 100
+
+    def _partial(a, b):
+        # Aproksimasi partial_ratio: rasio terbaik antar potongan.
+        return _difflib.SequenceMatcher(None, a, b).ratio() * 100
+
+
+# Ambang fuzzy (0-100). Tinggi = konservatif (hindari salah jawab). Disetel lewat
+# pengujian agar typo umum ("oder", "pembayran", "garansy") kena, tapi pertanyaan
+# tak relevan ("cuaca hari ini gimana") tetap tidak terjawab.
+_FUZZY_PHRASE_MIN = 90   # untuk kata kunci berfrasa (ada spasi)
+_FUZZY_WORD_MIN = 85     # untuk kata kunci satu kata
+_FUZZY_MIN_LEN = 5       # hanya cocokkan token yang cukup panjang
+
 
 def match_question(question, entries):
     """Cari entri FAQ paling cocok untuk sebuah pertanyaan member.
 
-    Skoring sederhana berbasis kata kunci (substring) + tumpang-tindih kata.
-    Mengembalikan entri terbaik atau None bila tak ada yang relevan.
+    Skoring berbasis kata kunci (substring) + tumpang-tindih kata, DITAMBAH
+    pencocokan fuzzy (toleran salah ketik). Mengembalikan entri terbaik atau
+    None bila tak ada yang cukup relevan.
     """
     if not question or not entries:
         return None
     q = question.lower()
     q_words = set(_WORD_RE.findall(q))
+    long_q_words = [w for w in q_words if len(w) >= _FUZZY_MIN_LEN]
     best, best_score = None, 0
     for e in entries:
         score = 0
@@ -190,9 +221,21 @@ def match_question(question, entries):
                 continue
             if kw in q:                      # frasa kata kunci muncul utuh
                 score += 3 + kw.count(" ")
+                continue
+            kw_words = set(_WORD_RE.findall(kw))
+            if kw_words and kw_words <= q_words:  # semua kata kw ada (persis)
+                score += 2
+                continue
+            # ── Fuzzy (toleran typo) — hanya untuk token yang cukup panjang ──
+            if len(kw) < _FUZZY_MIN_LEN:
+                continue
+            if " " in kw:
+                # Frasa: cari kemiripan substring tertinggi di pertanyaan.
+                if _partial(kw, q) >= _FUZZY_PHRASE_MIN:
+                    score += 3
             else:
-                kw_words = set(_WORD_RE.findall(kw))
-                if kw_words and kw_words <= q_words:  # semua kata kw ada
+                # Satu kata: bandingkan ke kata-kata panjang di pertanyaan.
+                if any(_ratio(kw, w) >= _FUZZY_WORD_MIN for w in long_q_words):
                     score += 2
         # sedikit bobot dari kemiripan dengan judul pertanyaan
         title_words = set(_WORD_RE.findall(e.get("q", "").lower()))
