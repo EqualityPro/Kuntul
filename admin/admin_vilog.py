@@ -10,7 +10,7 @@ dibangun lewat komponen bersama `admin_text_editor`.
 """
 from flask import Blueprint
 
-import admin_text_editor as ate
+from admin import admin_text_editor as ate
 from utils import vilog_text as vtext
 
 vilog_bp = Blueprint("vilog_bp", __name__)

@@ -9,7 +9,7 @@ Cog membaca teks lewat utils.ml_text. Halaman dibangun lewat komponen bersama
 """
 from flask import Blueprint
 
-import admin_text_editor as ate
+from admin import admin_text_editor as ate
 from utils import ml_text as mltext
 
 ml_bp = Blueprint("ml_bp", __name__)

@@ -11,7 +11,7 @@ jadi perubahan langsung dipakai berikutnya. Halaman dibangun lewat komponen bers
 """
 from flask import Blueprint
 
-import admin_text_editor as ate
+from admin import admin_text_editor as ate
 from utils import order_text as otext
 
 order_bp = Blueprint("order_bp", __name__)

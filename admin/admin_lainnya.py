@@ -9,7 +9,7 @@ Cog membaca teks lewat utils.lainnya_text. Halaman dibangun lewat komponen bersa
 """
 from flask import Blueprint
 
-import admin_text_editor as ate
+from admin import admin_text_editor as ate
 from utils import lainnya_text as latext
 
 lainnya_text_bp = Blueprint("lainnya_text_bp", __name__)

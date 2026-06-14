@@ -10,7 +10,7 @@ utils.review_text. Halaman dibangun lewat komponen bersama `admin_text_editor`.
 """
 from flask import Blueprint
 
-import admin_text_editor as ate
+from admin import admin_text_editor as ate
 from utils import review_text as rtext
 
 review_bp = Blueprint("review_bp", __name__)

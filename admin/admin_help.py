@@ -9,7 +9,7 @@ Cog membaca teks lewat utils.help_text. Halaman dibangun lewat komponen bersama
 """
 from flask import Blueprint
 
-import admin_text_editor as ate
+from admin import admin_text_editor as ate
 from utils import help_text as hstext
 
 help_bp = Blueprint("help_bp", __name__)

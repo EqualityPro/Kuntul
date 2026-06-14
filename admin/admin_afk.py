@@ -11,7 +11,7 @@ Halaman dibangun lewat komponen bersama `admin_text_editor`.
 """
 from flask import Blueprint
 
-import admin_text_editor as ate
+from admin import admin_text_editor as ate
 from utils import afk as afklib
 
 afk_bp = Blueprint("afk_bp", __name__)

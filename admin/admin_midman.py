@@ -10,7 +10,7 @@ komponen bersama `admin_text_editor`.
 """
 from flask import Blueprint
 
-import admin_text_editor as ate
+from admin import admin_text_editor as ate
 from utils import midman_text as mtext
 
 midman_bp = Blueprint("midman_bp", __name__)

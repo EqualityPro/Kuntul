@@ -9,7 +9,7 @@ Cog membaca teks lewat utils.robux_text. Halaman dibangun lewat komponen bersama
 """
 from flask import Blueprint
 
-import admin_text_editor as ate
+from admin import admin_text_editor as ate
 from utils import robux_text as rbtext
 
 robux_bp = Blueprint("robux_bp", __name__)

@@ -9,7 +9,7 @@ bersama `admin_text_editor`.
 """
 from flask import Blueprint
 
-import admin_text_editor as ate
+from admin import admin_text_editor as ate
 from utils import product_search_text as pstext
 
 psearch_bp = Blueprint("psearch_bp", __name__)

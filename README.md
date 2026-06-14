@@ -311,8 +311,11 @@ Perubahan produk via web langsung berlaku ke bot tanpa restart.
 ```
 midman/
 ├── main.py               # Entry point bot + notifikasi URL tunnel
-├── admin.py              # Flask admin panel (port 5000)
-├── admin_embed.py        # Blueprint untuk embed builder
+├── admin/                # Flask admin panel (paket; jalankan `python -m admin`)
+│   ├── app.py            # App utama Flask + render_page()/ICONS (port 5000)
+│   ├── __main__.py       # Entry point: `python -m admin`
+│   ├── admin_embed.py    # Blueprint embed builder
+│   └── ...               # 36 blueprint admin lainnya (admin_*.py)
 ├── seed.py               # Seed data produk default ke DB
 ├── start.sh              # Auto-start semua service
 ├── requirements.txt

@@ -2,7 +2,7 @@
 admin_embed.py — Embed Builder Blueprint untuk Admin Panel
 Menggunakan Discord REST API langsung (tidak butuh bot instance).
 Daftarkan otomatis via admin.py:
-    from admin_embed import embed_bp
+    from admin.admin_embed import embed_bp
     app.register_blueprint(embed_bp)
 """
 import os, json, sqlite3
