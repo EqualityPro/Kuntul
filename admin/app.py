@@ -125,7 +125,10 @@ app.register_blueprint(db_backup_bp)
 app.register_blueprint(psearch_bp)
 app.register_blueprint(server_stats_bp)
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "cellyn123")
-DB_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "midman.db")
+# DB ada di root proyek (bukan di dalam folder admin/). _BASE_DIR = parent dari
+# folder admin/ — lihat blok pemuatan .env di atas. Penting setelah admin/ jadi
+# paket: tanpa ini panel akan menunjuk admin/midman.db yang salah/kosong.
+DB_FILE = os.path.join(_BASE_DIR, "midman.db")
 
 
 # ── DB ────────────────────────────────────────────────────────────────────────
@@ -691,6 +694,44 @@ dd{margin:0;color:var(--text);}
 .rate-display{border-radius:var(--radius-sm);}
 .flash{border-radius:10px;}
 .empty{padding:2.75rem 1rem;}
+
+/* ============================================================
+   🌇 SUNSET 2026 — palet pilihan user (aksen oranye→rose, tema gelap)
+   Layer FINAL: override variabel aksen + latar mesh hangat + kaca
+   sedikit lebih tembus (sesuai preview yang dipilih). Murni CSS additif,
+   berlaku ke SEMUA halaman via render_page/BASE tanpa mengubah markup.
+   ============================================================ */
+:root{
+  --accent:#f97316;--accent2:#f43f5e;--accent-soft:#fdeee3;
+  --accent-grad:linear-gradient(135deg,#f97316 0%,#f43f5e 100%);
+  --ring:rgba(249,115,22,.22);
+  --glass:rgba(255,255,255,.74);
+  --glass-strong:rgba(255,255,255,.80);
+  --app-bg:
+     radial-gradient(900px 520px at 8% -10%, rgba(249,115,22,.12), transparent 60%),
+     radial-gradient(820px 520px at 104% -6%, rgba(244,63,94,.11), transparent 55%),
+     radial-gradient(760px 620px at 50% 122%, rgba(251,191,36,.08), transparent 62%),
+     #f3f0ec;
+}
+html[data-theme="dark"]{
+  --accent:#f97316;--accent2:#f43f5e;--accent-soft:#2c1a12;
+  --accent-grad:linear-gradient(135deg,#f97316 0%,#fb5e74 100%);
+  --ring:rgba(249,115,22,.34);
+  --glass:rgba(18,24,38,.60);
+  --glass-strong:rgba(20,26,42,.68);
+  --app-bg:
+     radial-gradient(900px 540px at 8% -12%, rgba(249,115,22,.22), transparent 60%),
+     radial-gradient(840px 540px at 104% -6%, rgba(244,63,94,.17), transparent 55%),
+     radial-gradient(780px 640px at 50% 124%, rgba(251,191,36,.10), transparent 62%),
+     #0c0a12;
+}
+/* Kaca lebih tembus + blur lebih kuat = look glassmorphism preview */
+.card,.stat-card,.qa-card{
+  -webkit-backdrop-filter:blur(16px) saturate(140%);backdrop-filter:blur(16px) saturate(140%);
+}
+.sidebar{-webkit-backdrop-filter:blur(20px) saturate(150%);backdrop-filter:blur(20px) saturate(150%);}
+/* Garis aksen atas stat-card pakai gradien sunset penuh */
+.stat-card::after{opacity:1;}
 </style>
 </head>
 <body>
@@ -1212,10 +1253,11 @@ def index():
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <script>
+var _acc=getComputedStyle(document.documentElement).getPropertyValue('--accent').trim()||'#f97316';
 new Chart(document.getElementById('dashChart'), {{
   type:'line',
   data:{{labels:{chart_labels},datasets:[{{label:'Omzet',data:{chart_omzet},
-    borderColor:'#5a6dc4',backgroundColor:'rgba(90,109,196,.12)',borderWidth:2,
+    borderColor:_acc,backgroundColor:_acc+'22',borderWidth:2,
     pointRadius:2,fill:true,tension:.4}}]}},
   options:{{responsive:true,plugins:{{legend:{{display:false}}}},
     scales:{{x:{{grid:{{color:'rgba(148,163,184,.15)'}},ticks:{{color:'#94a3b8',font:{{size:10}}}}}},
@@ -1687,9 +1729,8 @@ def page_gp():
     tickets = conn.execute("SELECT * FROM gp_tickets ORDER BY opened_at DESC LIMIT 50").fetchall()
     conn.close()
 
-    import os
     gp_rate = int(__import__("sqlite3").connect(
-        os.path.join(os.path.dirname(os.path.abspath(__file__)), "midman.db")
+        DB_FILE
     ).execute("SELECT value FROM bot_state WHERE key='gp_rate'").fetchone()[0] or 0)
 
     rows = ""
@@ -1758,12 +1799,12 @@ def page_gp():
 @app.route("/gp/rate", methods=["POST"])
 @login_required
 def gp_rate_save():
-    import sqlite3 as _sq, os
+    import sqlite3 as _sq
     rate = safe_int(request.form.get("rate"), min_val=1)
     if not rate:
         flash("Rate tidak valid.", "error")
         return redirect(url_for("page_gp"))
-    db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "midman.db")
+    db_path = DB_FILE
     conn = _sq.connect(db_path)
     conn.execute("INSERT OR REPLACE INTO bot_state (key, value) VALUES ('gp_rate', ?)", (str(rate),))
     conn.commit()
