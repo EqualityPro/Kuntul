@@ -2046,6 +2046,11 @@ def page_lainnya():
     content = f"""
 <div class="page-header">
   <div class="page-title">Lainnya<small>Kelola produk Cloud Phone & Discord Nitro</small></div>
+  <div class="page-actions">
+    <form method="POST" action="/lainnya/dedupe" onsubmit="return confirm('Hapus semua produk dobel (kategori + nama sama persis)? Disisakan 1 tiap item.')">
+      <button type="submit" class="btn btn-ghost btn-sm">🧹 Hapus Dobel</button>
+    </form>
+  </div>
 </div>
 
 <!-- Tambah Produk -->
@@ -2125,11 +2130,42 @@ def lainnya_add():
     from utils.db import get_conn
     conn = get_conn()
     c = conn.cursor()
+    # Cegah nama dobel: tolak kalau sudah ada produk dgn kategori + nama sama.
+    dup = c.execute(
+        "SELECT id FROM lainnya_products WHERE category=? AND name=?",
+        (category, name),
+    ).fetchone()
+    if dup:
+        conn.close()
+        flash(f"Produk '{name}' di kategori '{category}' sudah ada — tidak ditambahkan (cegah dobel).", "error")
+        return redirect(url_for("page_lainnya"))
     c.execute("INSERT INTO lainnya_products (category, name, harga, active) VALUES (?,?,?,1)",
               (category, name, harga_int))
     conn.commit()
     conn.close()
     flash(f"Produk {name} berhasil ditambahkan!", "success")
+    return redirect(url_for("page_lainnya"))
+
+
+@app.route("/lainnya/dedupe", methods=["POST"])
+def lainnya_dedupe():
+    """Hapus produk dobel (kategori + nama sama persis), sisakan 1 tiap item."""
+    if not session.get("logged_in"):
+        return redirect(url_for("login"))
+    from utils.db import get_conn
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute(
+        "DELETE FROM lainnya_products WHERE id NOT IN "
+        "(SELECT MIN(id) FROM lainnya_products GROUP BY category, name)"
+    )
+    removed = c.rowcount
+    conn.commit()
+    conn.close()
+    if removed > 0:
+        flash(f"{removed} produk dobel dihapus (disisakan 1 tiap kategori+nama).", "success")
+    else:
+        flash("Tidak ada produk dobel ditemukan.", "success")
     return redirect(url_for("page_lainnya"))
 
 
@@ -2148,6 +2184,15 @@ def lainnya_edit(pid):
             harga_int = int(harga)
         except ValueError:
             harga_int = 0
+        # Cegah dobel: jangan biarkan rename bentrok dgn produk lain (kategori+nama sama).
+        dup = c.execute(
+            "SELECT id FROM lainnya_products WHERE category=? AND name=? AND id<>?",
+            (category, name, pid),
+        ).fetchone()
+        if dup:
+            conn.close()
+            flash(f"Sudah ada produk '{name}' di kategori '{category}'. Perubahan dibatalkan (cegah dobel).", "error")
+            return redirect(url_for("lainnya_edit", pid=pid))
         c.execute("UPDATE lainnya_products SET category=?, name=?, harga=? WHERE id=?",
                   (category, name, harga_int, pid))
         conn.commit()
