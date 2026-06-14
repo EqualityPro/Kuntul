@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="id" data-theme="dark" data-accent="indigo">
+<html lang="id" data-theme="dark" data-accent="sunset">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -335,6 +335,32 @@ tbody tr:hover td{background:var(--track);}
       </div>
     </div>
 
+    <!-- Form / Edit page (contoh halaman edit) -->
+    <div class="card col2">
+      <h3>Edit Produk <span style="font-weight:500;color:var(--muted);font-size:.82rem">— contoh halaman form</span></h3>
+      <div class="sub">Begini tampilan input &amp; tombol di halaman edit</div>
+      <div style="display:flex;flex-direction:column;gap:.7rem;">
+        <div>
+          <label style="display:block;font-size:.7rem;color:var(--muted);font-weight:700;margin-bottom:.3rem;text-transform:uppercase;letter-spacing:.04em;">Nama Produk</label>
+          <input type="text" value="Robux 1000" style="width:100%;background:var(--track);border:1px solid var(--border-soft);border-radius:11px;padding:.6rem .85rem;color:var(--text);font-family:inherit;font-size:.88rem;">
+        </div>
+        <div style="display:flex;gap:.7rem;">
+          <div style="flex:1;">
+            <label style="display:block;font-size:.7rem;color:var(--muted);font-weight:700;margin-bottom:.3rem;text-transform:uppercase;letter-spacing:.04em;">Harga</label>
+            <input type="text" value="Rp 95.000" style="width:100%;background:var(--track);border:1px solid var(--border-soft);border-radius:11px;padding:.6rem .85rem;color:var(--text);font-family:inherit;font-size:.88rem;">
+          </div>
+          <div style="flex:1;">
+            <label style="display:block;font-size:.7rem;color:var(--muted);font-weight:700;margin-bottom:.3rem;text-transform:uppercase;letter-spacing:.04em;">Status</label>
+            <input type="text" value="Aktif" style="width:100%;background:var(--track);border:1px solid var(--border-soft);border-radius:11px;padding:.6rem .85rem;color:var(--text);font-family:inherit;font-size:.88rem;">
+          </div>
+        </div>
+        <div class="btns" style="margin-top:.3rem;">
+          <button class="btn btn-primary">Simpan</button>
+          <button class="btn btn-ghost">Batal</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Recent orders table -->
     <div class="card col3">
       <h3>Pesanan Terbaru</h3>
@@ -378,9 +404,9 @@ tbody tr:hover td{background:var(--track);}
   <div class="lbl">Warna Aksen</div>
   <div class="swatches" id="swatches">
     <div class="sw" data-accent="blue"    title="Biru"          style="background:linear-gradient(135deg,#2563eb,#1d4ed8)"></div>
-    <div class="sw sel" data-accent="indigo" title="Indigo–Violet" style="background:linear-gradient(135deg,#6366f1,#a855f7)"></div>
+    <div class="sw" data-accent="indigo" title="Indigo–Violet" style="background:linear-gradient(135deg,#6366f1,#a855f7)"></div>
     <div class="sw" data-accent="emerald" title="Emerald"       style="background:linear-gradient(135deg,#10b981,#0d9488)"></div>
-    <div class="sw" data-accent="sunset"  title="Sunset"        style="background:linear-gradient(135deg,#f97316,#f43f5e)"></div>
+    <div class="sw sel" data-accent="sunset"  title="Sunset"        style="background:linear-gradient(135deg,#f97316,#f43f5e)"></div>
     <div class="sw" data-accent="rose"    title="Rose–Pink"     style="background:linear-gradient(135deg,#f43f5e,#ec4899)"></div>
     <div class="sw" data-accent="cyan"    title="Cyan–Biru"     style="background:linear-gradient(135deg,#06b6d4,#3b82f6)"></div>
   </div>
