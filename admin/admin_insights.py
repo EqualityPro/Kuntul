@@ -27,7 +27,7 @@ from utils import warranty_monitor
 from utils import identity
 
 insights_bp = Blueprint("insights_bp", __name__)
-DB_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "midman.db")
+DB_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "midman.db")
 
 LAYANAN_LABEL = {
     "midman": "Midman", "robux": "Robux", "ml": "Mobile Legends",

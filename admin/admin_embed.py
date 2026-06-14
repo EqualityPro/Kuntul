@@ -10,7 +10,7 @@ import requests
 from functools import wraps
 from flask import Blueprint, request as req, jsonify, session, redirect
 
-DB_FILE  = os.path.join(os.path.dirname(os.path.abspath(__file__)), "midman.db")
+DB_FILE  = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "midman.db")
 API      = "https://discord.com/api/v10"
 
 embed_bp = Blueprint("embed_bp", __name__)
