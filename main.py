@@ -27,7 +27,8 @@ COGS = [
     "cogs.product_search", "cogs.sub_followup", "cogs.owo_stok",
     "cogs.member_sync",
     "cogs.admin_stats", "cogs.queue", "cogs.sticky", "cogs.help_slash",
-    "cogs.profile", "cogs.faq", "cogs.achievements"
+    "cogs.profile", "cogs.faq", "cogs.achievements",
+    "cogs.setup_wizard"
 ]
 
 
@@ -179,8 +180,13 @@ async def main():
     # Self-check .env lebih awal: error jelas bila variabel wajib kosong,
     # peringatan untuk variabel opsional yang mati diam-diam.
     from utils.env_check import run_startup_check
-    if not run_startup_check():
-        print("[ENV] Variabel wajib belum lengkap. Perbaiki .env lalu jalankan ulang.")
+    run_startup_check()  # cetak laporan ramah (tidak lagi memblok)
+
+    # Hanya TOKEN yang mutlak wajib untuk login. ID channel/role yang kurang
+    # TIDAK lagi memblok startup: bot tetap online supaya admin bisa menjalankan
+    # `!setup` (Setup Wizard) dan mengisinya lewat Discord.
+    if not TOKEN or not str(TOKEN).strip():
+        print("[ENV] TOKEN belum diisi di .env — bot tidak bisa login. Berhenti.")
         return
 
     init_database()
@@ -223,34 +229,59 @@ async def main():
 
 
 def check_env():
-    """Validasi konfigurasi wajib sebelum bot jalan.
+    """Validasi konfigurasi sebelum bot jalan.
 
-    Mencegah crash dengan traceback membingungkan saat .env belum lengkap
-    (umum terjadi waktu deploy di server baru). Menampilkan daftar yang kurang
-    lalu keluar rapi.
+    Hanya TOKEN yang MUTLAK wajib (tanpa itu bot tak bisa login). ID channel/role
+    yang kurang TIDAK lagi menghentikan bot — sebaliknya bot tetap online supaya
+    admin dapat menjalankan `!setup` (Setup Wizard) dan mengisinya lewat Discord.
+    Ini memecah masalah ayam-telur: dulu bot menolak start saat .env belum lengkap,
+    padahal wizard butuh bot yang hidup untuk mengisinya.
     """
-    missing = []
     if not TOKEN or not str(TOKEN).strip():
-        missing.append("TOKEN")
+        print("=" * 60)
+        print("  TOKEN belum diisi — bot tidak bisa login ke Discord.")
+        print("  Isi TOKEN di file .env (salin dari .env.example).")
+        print("=" * 60)
+        sys.exit(1)
+
     try:
         from utils.config import validate_required
-        missing.extend(validate_required())
+        missing = validate_required()
     except Exception as e:
         print(f"[SETUP] Gagal memuat konfigurasi: {e}")
         sys.exit(1)
 
     if missing:
         print("=" * 60)
-        print("  KONFIGURASI BELUM LENGKAP — bot tidak bisa dijalankan.")
-        print("  Variabel .env berikut WAJIB diisi:")
+        print("  Konfigurasi belum lengkap, TAPI bot tetap akan online.")
+        print("  Variabel berikut belum diisi:")
         for name in missing:
             print(f"    - {name}")
         print()
-        print("  Salin .env.example menjadi .env lalu isi nilainya.")
-        print("  (Lihat README bagian 'Setup Awal' & 'Environment Variables'.)")
+        print("  >> Jalankan perintah  !setup  di server Discord kamu untuk")
+        print("     mengisinya lewat dropdown (tanpa edit .env manual).")
         print("=" * 60)
-        sys.exit(1)
 
 
+def _bootstrap_settings():
+    """Siapkan DB + tabel settings, lalu overlay setting wizard ke os.environ
+    SEBELUM validasi konfigurasi. Dengan begini, self-host yang mengisi lewat
+    `!setup` (tersimpan di DB) tidak dianggap 'belum lengkap' walau .env kosong.
+    """
+    try:
+        from utils.db import init_db
+        init_db()
+    except Exception as e:
+        print(f"[INIT] init_db awal: {e}")
+    try:
+        from utils.settings_store import apply_to_environ
+        n = apply_to_environ()
+        if n:
+            print(f"[SETTINGS] {n} setting dari Setup Wizard diterapkan.")
+    except Exception as e:
+        print(f"[SETTINGS] overlay awal gagal: {e}")
+
+
+_bootstrap_settings()
 check_env()
 asyncio.run(main())
