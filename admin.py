@@ -1,0 +1,2724 @@
+"""
+admin.py — Store Admin Panel
+Jalankan: python admin.py
+Akses: http://localhost:5000
+Password default: cellyn123 (ubah via env ADMIN_PASSWORD)
+"""
+
+import os
+import sys
+import sqlite3
+import html
+
+# Load .env manual
+_env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
+if os.path.exists(_env_path):
+    for _line in open(_env_path):
+        _line = _line.strip()
+        if _line and not _line.startswith('#') and '=' in _line:
+            _k, _v = _line.split('=', 1)
+            os.environ.setdefault(_k.strip(), _v.strip())
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from flask import Flask, render_template_string, request, redirect, url_for, session, flash
+from utils import member_names
+
+
+def _member_cell(uid, nm):
+    """Sel identitas untuk tabel panel: avatar template + nama saja (tanpa id).
+
+    Fallback ke avatar siluet + id mentah bila nama belum ada di cache.
+    """
+    if not uid:
+        return "-"
+    from utils import identity
+    return identity.identity_html(uid, nm.get(str(uid)))
+from admin_embed import embed_bp
+from admin_insights import insights_bp
+from admin_profile_theme import theme_bp
+from admin_achievement_theme import badge_theme_bp
+from admin_welcome_theme import welcome_theme_bp
+from admin_rating_theme import rating_theme_bp
+from admin_topspender_theme import topspender_card_bp
+from admin_catalog_thumbnail import catalog_thumb_bp
+from admin_lainnya_emoji import lainnya_emoji_bp
+from admin_selfhost import selfhost_bp
+from admin_faq import faq_bp
+from admin_sticky import sticky_bp
+from admin_welcome import welcome_bp
+from admin_afk import afk_bp
+from admin_store_status import store_status_bp
+from admin_warranty import warranty_bp
+from admin_queue import queue_text_bp
+from admin_orders import order_bp
+from admin_reviews import review_bp
+from admin_midman import midman_bp
+from admin_vilog import vilog_bp
+from admin_gp import gp_bp
+from admin_robux import robux_bp
+from admin_ml import ml_bp
+from admin_lainnya import lainnya_text_bp
+from admin_lainnya_info import lainnya_info_bp
+from admin_faq_text import faq_text_bp
+from admin_sub_followup import sub_followup_bp
+from admin_top_spender import top_spender_bp
+from admin_help import help_bp
+from admin_profile_text import profile_text_bp
+from admin_text_center import text_center_bp
+from admin_text_backup import text_backup_bp
+from admin_text_audit import text_audit_bp
+from admin_db_backup import db_backup_bp
+from admin_product_search import psearch_bp
+from admin_server_stats import server_stats_bp
+from functools import wraps
+
+# Brand panel: ikut STORE_NAME (.env) supaya tidak ada "Cellyn" yang nyangkut
+# saat dipakai server lain. Default aman bila config gagal di-import.
+try:
+    from utils.config import STORE_NAME as _STORE_NAME
+except Exception:
+    _STORE_NAME = "Store"
+ADMIN_BRAND = f"{_STORE_NAME} Admin"
+
+app = Flask(__name__)
+app.secret_key = os.environ.get("ADMIN_SECRET", "cellyn-admin-secret-2024")
+app.register_blueprint(embed_bp)
+app.register_blueprint(insights_bp)
+app.register_blueprint(theme_bp)
+app.register_blueprint(badge_theme_bp)
+app.register_blueprint(welcome_theme_bp)
+app.register_blueprint(rating_theme_bp)
+app.register_blueprint(topspender_card_bp)
+app.register_blueprint(catalog_thumb_bp)
+app.register_blueprint(lainnya_emoji_bp)
+app.register_blueprint(selfhost_bp)
+app.register_blueprint(faq_bp)
+app.register_blueprint(sticky_bp)
+app.register_blueprint(welcome_bp)
+app.register_blueprint(afk_bp)
+app.register_blueprint(store_status_bp)
+app.register_blueprint(warranty_bp)
+app.register_blueprint(queue_text_bp)
+app.register_blueprint(order_bp)
+app.register_blueprint(review_bp)
+app.register_blueprint(midman_bp)
+app.register_blueprint(vilog_bp)
+app.register_blueprint(gp_bp)
+app.register_blueprint(robux_bp)
+app.register_blueprint(ml_bp)
+app.register_blueprint(lainnya_text_bp)
+app.register_blueprint(lainnya_info_bp)
+app.register_blueprint(faq_text_bp)
+app.register_blueprint(sub_followup_bp)
+app.register_blueprint(top_spender_bp)
+app.register_blueprint(help_bp)
+app.register_blueprint(profile_text_bp)
+app.register_blueprint(text_center_bp)
+app.register_blueprint(text_backup_bp)
+app.register_blueprint(text_audit_bp)
+app.register_blueprint(db_backup_bp)
+app.register_blueprint(psearch_bp)
+app.register_blueprint(server_stats_bp)
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "cellyn123")
+DB_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "midman.db")
+
+
+# ── DB ────────────────────────────────────────────────────────────────────────
+def get_conn():
+    conn = sqlite3.connect(DB_FILE)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def safe_int(val, min_val=None):
+    """Konversi string ke int dengan aman. Return None jika tidak valid."""
+    try:
+        v = int(str(val).strip())
+        if min_val is not None and v < min_val:
+            return None
+        return v
+    except (ValueError, TypeError):
+        return None
+
+
+# ── AUTH ──────────────────────────────────────────────────────────────────────
+def login_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not session.get("logged_in"):
+            return redirect(url_for("login"))
+        return f(*args, **kwargs)
+    return decorated
+
+
+# ── BASE TEMPLATE ─────────────────────────────────────────────────────────────
+BASE = r"""<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BRANDPLACEHOLDER</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+<style>
+ :root{
+  --bg:#f5f7fa;--surface:#ffffff;--surface2:#f8fafc;--surface3:#eef1f6;
+  --border:#e4e8ee;--border2:#d3d9e2;--input-bg:#f8fafc;
+  --accent:#2563eb;--accent2:#1d4ed8;--accent-soft:#eff4ff;
+  --text:#0f172a;--text2:#334155;--muted:#64748b;--muted2:#475569;
+  --danger:#dc2626;--danger-soft:#fef2f2;
+  --success:#16a34a;--success-soft:#f0fdf4;
+  --warning:#d97706;--warning-soft:#fffbeb;
+  --shadow-sm:0 1px 2px rgba(15,23,42,.04);
+  --shadow:0 1px 3px rgba(15,23,42,.06),0 1px 2px rgba(15,23,42,.04);
+  --sidebar-w:248px;
+}
+html[data-theme="dark"]{
+  --bg:#0b1120;--surface:#111827;--surface2:#0f1a2e;--surface3:#1e293b;
+  --border:#243042;--border2:#334155;--input-bg:#0f1a2e;
+  --accent:#3b82f6;--accent2:#2563eb;--accent-soft:#16243d;
+  --text:#e8eef6;--text2:#cbd5e1;--muted:#8aa0b8;--muted2:#a9b8cc;
+  --danger:#f87171;--danger-soft:#2a1416;
+  --success:#4ade80;--success-soft:#0f231a;
+  --warning:#fbbf24;--warning-soft:#241c0c;
+  --shadow-sm:0 1px 2px rgba(0,0,0,.3);
+  --shadow:0 1px 3px rgba(0,0,0,.35),0 1px 2px rgba(0,0,0,.3);
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{
+  font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  background:var(--bg);color:var(--text);min-height:100vh;display:flex;
+  -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
+}
+a{color:var(--accent);text-decoration:none;}
+
+/* SIDEBAR */
+.sidebar{width:var(--sidebar-w);min-height:100vh;background:var(--surface);
+  border-right:1px solid var(--border);display:flex;flex-direction:column;position:fixed;top:0;left:0;z-index:200;transition:transform .22s ease;}
+.sidebar-logo{padding:1.25rem 1.25rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:.75rem;}
+.sidebar-logo img{width:38px;height:38px;border-radius:9px;object-fit:cover;}
+.sidebar-logo-text{font-size:1rem;font-weight:700;letter-spacing:-.01em;line-height:1.15;color:var(--text);}
+.sidebar-logo-text span{display:block;font-size:.66rem;font-weight:500;color:var(--muted);letter-spacing:.04em;margin-top:1px;}
+.sidebar-nav{flex:1;padding:.75rem .65rem;overflow-y:auto;}
+.nav-section{padding:.5rem .6rem .3rem;font-size:.66rem;font-weight:600;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-top:.5rem;}
+.nav-item{display:flex;align-items:center;gap:.7rem;padding:.55rem .65rem;color:var(--muted2);font-size:.86rem;font-weight:500;
+  transition:background .15s,color .15s;cursor:pointer;border-radius:8px;margin:1px 0;}
+.nav-item:hover{color:var(--text);background:var(--surface3);}
+.nav-item.active{color:var(--accent);background:var(--accent-soft);font-weight:600;}
+.nav-item svg{width:17px;height:17px;flex-shrink:0;stroke-width:2;}
+.sidebar-footer{padding:.75rem .9rem;border-top:1px solid var(--border);}
+.nav-logout{display:flex;align-items:center;gap:.7rem;padding:.55rem .65rem;border-radius:8px;color:var(--danger);font-size:.85rem;
+  font-weight:500;transition:background .15s;cursor:pointer;}
+.nav-logout:hover{background:var(--danger-soft);}
+.nav-logout svg{width:17px;height:17px;stroke-width:2;}
+
+/* TOPBAR MOBILE */
+.topbar{display:none;height:56px;background:var(--surface);border-bottom:1px solid var(--border);
+  padding:0 1rem;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:150;}
+.topbar-logo{font-size:1rem;font-weight:700;color:var(--text);}
+.topbar-logo span{color:var(--accent);}
+.hamburger{background:none;border:none;color:var(--text);cursor:pointer;padding:.4rem;}
+.hamburger svg{width:22px;height:22px;}
+.sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(15,23,42,.4);z-index:190;}
+.sidebar-overlay.active{display:block;}
+
+/* MAIN */
+.main{margin-left:var(--sidebar-w);flex:1;min-height:100vh;display:flex;flex-direction:column;}
+.content{flex:1;padding:2rem 2.25rem;max-width:1280px;width:100%;}
+
+/* PAGE HEADER */
+.page-header{margin-bottom:1.5rem;display:flex;align-items:flex-end;justify-content:space-between;gap:1rem;flex-wrap:wrap;}
+.page-title,.page-header h2{font-size:1.5rem;font-weight:700;letter-spacing:-.02em;color:var(--text);}
+.page-title small{display:block;font-size:.82rem;font-weight:400;color:var(--muted);margin-top:.2rem;letter-spacing:0;text-transform:none;}
+.page-header p,.text-muted{color:var(--muted);font-size:.85rem;margin-top:.2rem;}
+.page-actions{display:flex;gap:.5rem;flex-wrap:wrap;}
+
+/* CARDS */
+.card{position:relative;background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:1.15rem;box-shadow:var(--shadow);}
+.card-header{padding:.9rem 1.25rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:.75rem;}
+.card-title{font-size:.8rem;font-weight:600;letter-spacing:.01em;color:var(--text);display:flex;align-items:center;gap:.5rem;}
+.card-title svg{width:16px;height:16px;color:var(--accent);stroke-width:2;}
+.card-body{padding:1.25rem;}
+
+/* STAT CARDS */
+.stats-grid,.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1rem;margin-bottom:1.5rem;}
+.stat-card{position:relative;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.25rem 1.35rem;overflow:hidden;box-shadow:var(--shadow);transition:border-color .15s,box-shadow .15s;}
+.stat-card:hover{border-color:var(--border2);box-shadow:var(--shadow),0 4px 16px rgba(15,23,42,.06);}
+.stat-top{display:flex;align-items:flex-start;justify-content:space-between;gap:.75rem;}
+.stat-card.ml{--ic-bg:#eff6ff;--ic-bd:#dbeafe;--ic-fg:#2563eb;}
+.stat-card.ff{--ic-bg:#fff7ed;--ic-bd:#ffedd5;--ic-fg:#ea580c;}
+.stat-card.robux{--ic-bg:#fdf2f8;--ic-bd:#fce7f3;--ic-fg:#db2777;}
+.stat-card.gp{--ic-bg:#f5f3ff;--ic-bd:#ede9fe;--ic-fg:#7c3aed;}
+.stat-card.gold{--ic-bg:#fffbeb;--ic-bd:#fef3c7;--ic-fg:#d97706;}
+.stat-card.green{--ic-bg:#f0fdf4;--ic-bd:#dcfce7;--ic-fg:#16a34a;}
+.qa-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:.85rem;}
+.qa-card{display:flex;align-items:center;gap:.85rem;padding:1rem 1.1rem;border-radius:12px;background:var(--surface);border:1px solid var(--border);box-shadow:var(--shadow);transition:border-color .15s,box-shadow .15s;}
+.qa-card:hover{border-color:var(--accent);box-shadow:var(--shadow),0 4px 16px rgba(37,99,235,.1);}
+.qa-ic{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;background:var(--accent-soft);color:var(--accent);flex-shrink:0;}
+.qa-ic svg{width:19px;height:19px;stroke-width:2;}
+.qa-tx{display:flex;flex-direction:column;}
+.qa-tt{font-size:.88rem;font-weight:600;color:var(--text);}
+.qa-sb{font-size:.74rem;color:var(--muted);margin-top:.05rem;}
+.stat-icon{width:42px;height:42px;border-radius:10px;display:flex;align-items:center;justify-content:center;background:var(--ic-bg,var(--accent-soft));border:1px solid var(--ic-bd,#dbeafe);color:var(--ic-fg,var(--accent));flex-shrink:0;}
+.stat-icon svg{width:21px;height:21px;stroke-width:2;}
+.stat-label{font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:600;margin-top:.9rem;}
+.stat-value{font-size:1.85rem;font-weight:700;margin-top:.25rem;line-height:1;letter-spacing:-.02em;color:var(--text);}
+.stat-sub{font-size:.76rem;color:var(--muted);margin-top:.35rem;}
+
+/* TABLE */
+table,.data-table{width:100%;border-collapse:collapse;}
+.table-wrapper{overflow-x:auto;}
+th{text-align:left;padding:.7rem 1.25rem;font-size:.7rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);border-bottom:1px solid var(--border);font-weight:600;background:var(--surface2);}
+td{padding:.8rem 1.25rem;border-bottom:1px solid var(--border);font-size:.86rem;vertical-align:middle;color:var(--text2);}
+tr:last-child td{border-bottom:none;}
+tbody tr{transition:background .12s;}
+tbody tr:hover td{background:var(--surface2);}
+
+/* BADGE */
+.badge{display:inline-flex;align-items:center;padding:.22rem .55rem;border-radius:6px;font-size:.7rem;font-weight:600;letter-spacing:.02em;}
+.badge-gamepass{background:#f5f3ff;color:#7c3aed;border:1px solid #ede9fe;}
+.badge-crate{background:#fdf2f8;color:#db2777;border:1px solid #fce7f3;}
+.badge-boost{background:#fffbeb;color:#d97706;border:1px solid #fef3c7;}
+.badge-limited{background:#f0fdf4;color:#16a34a;border:1px solid #dcfce7;}
+.badge-ml{background:#eff6ff;color:#2563eb;border:1px solid #dbeafe;}
+.badge-ff{background:#fff7ed;color:#ea580c;border:1px solid #ffedd5;}
+.badge-aktif{background:var(--success-soft);color:var(--success);border:1px solid #dcfce7;}
+.badge-nonaktif{background:var(--danger-soft);color:var(--danger);border:1px solid #fee2e2;}
+
+/* BUTTONS */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;padding:.5rem .95rem;border-radius:8px;
+  font-family:inherit;font-size:.82rem;font-weight:600;cursor:pointer;border:1px solid transparent;transition:background .15s,border-color .15s,color .15s;text-decoration:none;line-height:1.2;white-space:nowrap;}
+.btn-primary{background:var(--accent);color:#fff;}
+.btn-primary:hover{background:var(--accent2);}
+.btn-danger{background:#fff;color:var(--danger);border-color:#fecaca;}
+.btn-danger:hover{background:var(--danger-soft);}
+.btn-ghost{background:var(--surface);color:var(--text2);border-color:var(--border2);}
+.btn-ghost:hover{background:var(--surface2);border-color:var(--muted);}
+.btn-success{background:#fff;color:var(--success);border-color:#bbf7d0;}
+.btn-success:hover{background:var(--success-soft);}
+.btn-warning,.btn-warn{background:#fff;color:var(--warning);border-color:#fde68a;}
+.btn-warning:hover,.btn-warn:hover{background:var(--warning-soft);}
+.btn-sm{padding:.32rem .6rem;font-size:.74rem;border-radius:6px;}
+
+/* FORMS */
+.form-grid{display:grid;gap:1rem;}.form-grid-2{grid-template-columns:1fr 1fr;}
+.form-group{display:flex;flex-direction:column;gap:.4rem;}
+label{font-size:.76rem;color:var(--muted2);font-weight:600;letter-spacing:0;text-transform:none;}
+input,select,textarea{background:var(--surface);border:1px solid var(--border2);border-radius:8px;
+  padding:.55rem .8rem;color:var(--text);font-family:inherit;font-size:.86rem;
+  transition:border-color .15s,box-shadow .15s;width:100%;}
+input::placeholder,textarea::placeholder{color:#94a3b8;}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(37,99,235,.12);}
+select option{background:var(--surface);}
+textarea{resize:vertical;min-height:80px;}
+.form-actions{display:flex;gap:.6rem;margin-top:.5rem;flex-wrap:wrap;}
+
+/* RATE DISPLAY */
+.rate-display{background:var(--surface2);border:1px solid var(--border);border-radius:10px;
+  padding:1rem 1.25rem;display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-bottom:1.25rem;}
+.rate-value{font-size:1.5rem;font-weight:700;color:var(--accent);letter-spacing:-.02em;}
+
+/* MODAL */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:1000;
+  align-items:center;justify-content:center;padding:1rem;}
+.modal-overlay.active{display:flex;}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:14px;
+  padding:1.6rem;width:100%;max-width:480px;box-shadow:0 20px 50px rgba(15,23,42,.18);animation:modalIn .18s ease;}
+@keyframes modalIn{from{opacity:0;transform:scale(.97) translateY(6px)}to{opacity:1;transform:scale(1) translateY(0)}}
+.modal-title{font-size:1.1rem;font-weight:700;margin-bottom:1.35rem;color:var(--text);letter-spacing:-.01em;}
+
+/* FLASH */
+.flash-list{list-style:none;margin-bottom:1.25rem;}
+.flash{padding:.7rem 1rem;border-radius:8px;font-size:.84rem;margin-bottom:.4rem;font-weight:500;}
+.flash-success{background:var(--success-soft);border:1px solid #bbf7d0;color:#15803d;}
+.flash-error{background:var(--danger-soft);border:1px solid #fecaca;color:#b91c1c;}
+
+/* MISC */
+.empty{text-align:center;padding:2.5rem;color:var(--muted);font-size:.85rem;}
+.note{margin-top:1rem;padding:.9rem 1.25rem;background:var(--surface2);border-radius:8px;border:1px solid var(--border);font-size:.8rem;color:var(--muted);}
+.inline-form{display:flex;gap:.5rem;align-items:center;}
+.inline-form input{width:auto;min-width:80px;}
+.divider{height:1px;background:var(--border);margin:1.15rem 0;}
+code{background:var(--surface3);padding:.12rem .4rem;border-radius:5px;font-size:.8rem;color:var(--text2);font-family:'SFMono-Regular',Consolas,monospace;}
+
+/* MOBILE */
+@media(max-width:768px){
+  .sidebar{transform:translateX(-100%);box-shadow:0 0 40px rgba(15,23,42,.15);}
+  .sidebar.open{transform:translateX(0);}
+  .topbar{display:flex;}
+  .main{margin-left:0;}
+  .content{padding:1rem;}
+  .form-grid-2{grid-template-columns:1fr;}
+  .stats-grid,.stat-grid{grid-template-columns:1fr 1fr;}
+  th,td{padding:.6rem .75rem;}
+  .page-title,.page-header h2{font-size:1.25rem;}
+  table{font-size:.8rem;}
+}
+@media(max-width:480px){
+  .stats-grid,.stat-grid{grid-template-columns:1fr;}
+}
+
+/* ============================================================
+   ✨ 2026 REFRESH — lapisan upgrade visual (override aturan di atas)
+   Tren: glassmorphism, gradien lembut, aksen indigo→violet, radius
+   lebih besar, shadow berlapis, dan micro-interaction halus.
+   Hanya CSS — tidak mengubah struktur/markup, jadi berlaku ke semua
+   halaman tanpa risiko.
+   ============================================================ */
+:root{
+  --accent:#6366f1;--accent2:#4f46e5;--accent-soft:#eef1ff;
+  --accent-grad:linear-gradient(135deg,#6366f1 0%,#8b5cf6 100%);
+  --ring:rgba(99,102,241,.28);
+  --radius:16px;--radius-sm:10px;
+  --shadow-sm:0 1px 2px rgba(2,6,23,.05);
+  --shadow:0 2px 4px rgba(2,6,23,.04),0 6px 16px rgba(2,6,23,.06);
+  --shadow-lg:0 18px 40px -14px rgba(2,6,23,.20),0 8px 18px -10px rgba(2,6,23,.12);
+  --glass:rgba(255,255,255,.68);
+  --glass-strong:rgba(255,255,255,.86);
+  --glass-border:rgba(255,255,255,.6);
+  --app-bg:
+     radial-gradient(900px 520px at 10% -10%, rgba(99,102,241,.10), transparent 60%),
+     radial-gradient(820px 520px at 102% -4%, rgba(139,92,246,.10), transparent 55%),
+     radial-gradient(760px 620px at 50% 122%, rgba(56,189,248,.07), transparent 60%),
+     #f2f4fb;
+}
+html[data-theme="dark"]{
+  --accent:#818cf8;--accent2:#6366f1;--accent-soft:#1c2440;
+  --accent-grad:linear-gradient(135deg,#818cf8 0%,#a78bfa 100%);
+  --ring:rgba(129,140,248,.35);
+  --glass:rgba(17,24,39,.60);
+  --glass-strong:rgba(17,24,39,.82);
+  --glass-border:rgba(148,163,184,.16);
+  --shadow:0 2px 4px rgba(0,0,0,.30),0 8px 18px rgba(0,0,0,.34);
+  --shadow-lg:0 22px 48px -14px rgba(0,0,0,.58),0 10px 22px -10px rgba(0,0,0,.42);
+  --app-bg:
+     radial-gradient(900px 540px at 8% -12%, rgba(99,102,241,.22), transparent 60%),
+     radial-gradient(840px 540px at 104% -6%, rgba(139,92,246,.17), transparent 55%),
+     radial-gradient(780px 640px at 50% 124%, rgba(56,189,248,.10), transparent 60%),
+     #0a0f1d;
+}
+body{background:var(--app-bg);background-attachment:fixed;}
+
+/* Scrollbar modern */
+*{scrollbar-width:thin;scrollbar-color:var(--border2) transparent;}
+*::-webkit-scrollbar{width:10px;height:10px;}
+*::-webkit-scrollbar-thumb{background:var(--border2);border-radius:20px;border:2px solid transparent;background-clip:content-box;}
+*::-webkit-scrollbar-thumb:hover{background:var(--muted);background-clip:content-box;}
+
+/* Sidebar — frosted glass + aksen aktif */
+.sidebar{background:var(--glass);-webkit-backdrop-filter:blur(18px) saturate(160%);backdrop-filter:blur(18px) saturate(160%);border-right:1px solid var(--glass-border);}
+.sidebar-logo img{box-shadow:0 6px 16px -6px rgba(99,102,241,.55);}
+.nav-item{position:relative;border-radius:10px;}
+.nav-item svg{width:18px;height:18px;}
+.nav-item.active{background:var(--accent-soft);color:var(--accent);}
+.nav-item.active::before{content:"";position:absolute;left:-.65rem;top:50%;transform:translateY(-50%);width:3px;height:58%;border-radius:0 3px 3px 0;background:var(--accent-grad);}
+
+/* Topbar mobile — glass */
+.topbar{background:var(--glass-strong);-webkit-backdrop-filter:blur(14px) saturate(160%);backdrop-filter:blur(14px) saturate(160%);border-bottom:1px solid var(--glass-border);}
+
+/* Judul halaman sedikit lebih tegas */
+.page-title,.page-header h2{font-size:1.6rem;letter-spacing:-.025em;}
+
+/* Kartu */
+.card{border-radius:var(--radius);box-shadow:var(--shadow);transition:box-shadow .22s ease,transform .22s ease,border-color .22s ease;}
+.card:hover{box-shadow:var(--shadow-lg);}
+.card-title{font-size:.84rem;}
+
+/* Stat cards — tile ikon gradien, garis aksen atas, hover lift */
+.stats-grid,.stat-grid{gap:1.15rem;}
+.stat-card{border-radius:var(--radius);box-shadow:var(--shadow);transition:transform .22s ease,box-shadow .22s ease,border-color .22s ease;}
+.stat-card::after{content:"";position:absolute;top:0;left:0;right:0;height:3px;background:var(--ic-grad,var(--accent-grad));}
+.stat-card:hover{transform:translateY(-3px);box-shadow:var(--shadow-lg);}
+.stat-value{font-size:2rem;letter-spacing:-.03em;}
+.stat-icon{width:46px;height:46px;border-radius:13px;border:none;color:#fff;background:var(--ic-grad,var(--accent-grad));box-shadow:0 8px 18px -7px var(--ic-fg,var(--accent));}
+.stat-icon svg{width:22px;height:22px;}
+.stat-card.ml{--ic-grad:linear-gradient(135deg,#60a5fa,#2563eb);}
+.stat-card.ff{--ic-grad:linear-gradient(135deg,#fb923c,#ea580c);}
+.stat-card.robux{--ic-grad:linear-gradient(135deg,#f472b6,#db2777);}
+.stat-card.gp{--ic-grad:linear-gradient(135deg,#a78bfa,#7c3aed);}
+.stat-card.gold{--ic-grad:linear-gradient(135deg,#fbbf24,#d97706);}
+.stat-card.green{--ic-grad:linear-gradient(135deg,#34d399,#16a34a);}
+
+/* Akses cepat */
+.qa-card{border-radius:var(--radius);transition:transform .2s ease,box-shadow .2s ease,border-color .2s ease;}
+.qa-card:hover{transform:translateY(-3px);box-shadow:var(--shadow-lg);border-color:var(--accent);}
+.qa-ic{border-radius:12px;background:var(--accent-grad);color:#fff;box-shadow:0 8px 18px -7px var(--accent);}
+
+/* Tombol — primary gradien + lift */
+.btn{border-radius:10px;transition:transform .15s ease,box-shadow .15s ease,background .15s,border-color .15s,color .15s,filter .15s;}
+.btn-primary{background:var(--accent-grad);border:none;box-shadow:0 6px 16px -7px var(--accent);}
+.btn-primary:hover{filter:brightness(1.06);transform:translateY(-1px);box-shadow:0 12px 24px -8px var(--accent);}
+.btn-ghost:hover{transform:translateY(-1px);border-color:var(--accent);color:var(--accent);}
+.btn-sm{border-radius:8px;}
+
+/* Badge → pill */
+.badge{border-radius:999px;padding:.26rem .65rem;}
+
+/* Input — radius & focus ring lembut */
+input,select,textarea{border-radius:10px;}
+input:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:0 0 0 4px var(--ring);}
+
+/* Tabel — hover baris bernuansa aksen */
+tbody tr:hover td{background:var(--accent-soft);}
+
+/* Rate display */
+.rate-display{border-radius:var(--radius);}
+
+/* Modal + command palette — glass */
+.modal{border-radius:18px;box-shadow:var(--shadow-lg);}
+#cmdPalette .modal{background:var(--glass-strong);-webkit-backdrop-filter:blur(20px) saturate(160%);backdrop-filter:blur(20px) saturate(160%);border:1px solid var(--glass-border);}
+
+/* Kartu konten jadi frosted glass (tetap legibel: opasitas tinggi + blur) */
+.card,.stat-card,.qa-card{
+  background:var(--glass-strong);
+  -webkit-backdrop-filter:blur(16px) saturate(150%);backdrop-filter:blur(16px) saturate(150%);
+  border:1px solid var(--glass-border);
+}
+.card-header{border-bottom-color:var(--glass-border);}
+th{background:transparent;}
+.table-wrapper thead th{background:var(--surface2);}
+
+/* ── Animasi transisi halaman (masuk & keluar) ─────────────────────────── */
+@media (prefers-reduced-motion: no-preference){
+  @keyframes pageFade{from{opacity:0}to{opacity:1}}
+  @keyframes cardIn{from{opacity:0;transform:translateY(14px) scale(.985)}to{opacity:1;transform:translateY(0) scale(1)}}
+  .content{animation:pageFade .3s ease both;}
+  /* reveal bertahap tiap blok teratas di halaman */
+  .content > *{animation:cardIn .44s cubic-bezier(.22,.61,.36,1) both;}
+  .content > *:nth-child(1){animation-delay:.02s}
+  .content > *:nth-child(2){animation-delay:.07s}
+  .content > *:nth-child(3){animation-delay:.12s}
+  .content > *:nth-child(4){animation-delay:.17s}
+  .content > *:nth-child(5){animation-delay:.22s}
+  .content > *:nth-child(6){animation-delay:.27s}
+  .content > *:nth-child(7){animation-delay:.32s}
+  .content > *:nth-child(8){animation-delay:.37s}
+  .content > *:nth-child(n+9){animation-delay:.4s}
+  /* reveal bertahap kartu statistik di dalam grid */
+  .stats-grid > *,.stat-grid > *,.qa-grid > *{animation:cardIn .5s cubic-bezier(.22,.61,.36,1) both;}
+  .stats-grid > *:nth-child(2),.stat-grid > *:nth-child(2),.qa-grid > *:nth-child(2){animation-delay:.06s}
+  .stats-grid > *:nth-child(3),.stat-grid > *:nth-child(3),.qa-grid > *:nth-child(3){animation-delay:.12s}
+  .stats-grid > *:nth-child(4),.stat-grid > *:nth-child(4),.qa-grid > *:nth-child(4){animation-delay:.18s}
+  .stats-grid > *:nth-child(5),.stat-grid > *:nth-child(5),.qa-grid > *:nth-child(5){animation-delay:.24s}
+  .stats-grid > *:nth-child(n+6),.stat-grid > *:nth-child(n+6),.qa-grid > *:nth-child(n+6){animation-delay:.3s}
+  /* keluar halaman: konten meredup & naik sedikit sebelum pindah */
+  body.is-leaving .content{opacity:0;transform:translateY(-8px);transition:opacity .17s ease,transform .17s ease;animation:none;}
+}
+
+/* ── Sidebar: tinggi tetap (menu bisa di-scroll) + grup yang bisa diciutkan ── */
+.sidebar{height:100vh;max-height:100vh;}
+.sidebar-nav{min-height:0;}
+.nav-group{margin-bottom:.1rem;}
+.nav-section.nav-toggle{display:flex;align-items:center;justify-content:space-between;gap:.5rem;width:100%;background:none;border:none;cursor:pointer;font-family:inherit;border-radius:8px;}
+.nav-section.nav-toggle:hover{color:var(--text);background:var(--surface3);}
+.nav-chevron{width:13px;height:13px;opacity:.6;transition:transform .22s ease;flex-shrink:0;}
+.nav-group.collapsed .nav-chevron{transform:rotate(-90deg);}
+.nav-group-items{overflow:hidden;max-height:1600px;transition:max-height .28s ease;}
+.nav-group.collapsed .nav-group-items{max-height:0;}
+/* Kotak cari menu di sidebar */
+.sidebar-search{padding:.7rem .75rem .2rem;}
+.nav-search-box{position:relative;display:flex;align-items:center;}
+.nav-search-box svg{position:absolute;left:.6rem;top:50%;transform:translateY(-50%);width:15px;height:15px;color:var(--muted);pointer-events:none;}
+.nav-search-box input{width:100%;padding:.5rem .6rem .5rem 2rem;font-size:.84rem;border:1px solid var(--border);border-radius:10px;background:var(--input-bg);color:var(--text);}
+.nav-search-box input:focus{border-color:var(--accent);box-shadow:0 0 0 4px var(--ring);outline:none;}
+.nav-empty{display:none;padding:.6rem .8rem;font-size:.8rem;color:var(--muted);}
+body.nav-filtering .nav-chevron{opacity:.25;}
+
+/* ============================================================
+   🌿 CALM 2026 — palet tenang & kartu modern (lapisan FINAL)
+   Mengganti nuansa indigo/violet yang ramai dengan palet
+   "slate-indigo" yang lembut, latar bersih nyaris polos,
+   kartu rapi dengan bayangan halus, ikon kontekstual yang
+   diturunkan saturasinya, dan tipografi yang nyaman dibaca.
+   Hanya CSS (utamanya redefinisi variabel) sehingga berlaku
+   ke SEMUA halaman lewat render_page tanpa ubah markup.
+   ============================================================ */
+:root{
+  /* Netral sejuk & kalem */
+  --bg:#eef1f6;--surface:#ffffff;--surface2:#f6f8fc;--surface3:#eef2f7;
+  --border:#e8ecf3;--border2:#d7dde8;--input-bg:#f6f8fc;
+  --text:#1d2435;--text2:#3b4660;--muted:#76819a;--muted2:#54607b;
+
+  /* Aksen tenang: slate-indigo lembut (cukup kontras utk teks putih) */
+  --accent:#5a6dc4;--accent2:#4a5cb0;--accent-soft:#eef0fa;
+  --accent-grad:linear-gradient(135deg,#5a6dc4 0%,#7768c9 100%);
+  --ring:rgba(90,109,196,.20);
+
+  /* Sudut & bayangan halus berlapis */
+  --radius:16px;--radius-sm:11px;
+  --shadow-sm:0 1px 2px rgba(30,41,59,.05);
+  --shadow:0 1px 2px rgba(30,41,59,.04),0 8px 20px -10px rgba(30,41,59,.10);
+  --shadow-lg:0 22px 46px -20px rgba(30,41,59,.22),0 10px 24px -16px rgba(30,41,59,.14);
+
+  /* Kartu bersih (kaca tipis, tetap legibel) */
+  --glass:rgba(255,255,255,.82);
+  --glass-strong:rgba(255,255,255,.94);
+  --glass-border:#e8ecf3;
+
+  /* Latar aplikasi: satu sapuan lembut + netral polos */
+  --app-bg:
+     radial-gradient(1100px 620px at 50% -25%, rgba(90,109,196,.07), transparent 70%),
+     #eef1f6;
+}
+html[data-theme="dark"]{
+  --bg:#0c111c;--surface:#141b29;--surface2:#111826;--surface3:#1b2436;
+  --border:#222c3e;--border2:#2f3b52;--input-bg:#111826;
+  --text:#e7ebf4;--text2:#c4ccdc;--muted:#8693ac;--muted2:#a7b2c7;
+
+  --accent:#8b9be0;--accent2:#7383d4;--accent-soft:#1b2238;
+  --accent-grad:linear-gradient(135deg,#7a8bdb 0%,#9a8fe0 100%);
+  --ring:rgba(139,155,224,.30);
+
+  --glass:rgba(20,27,41,.70);
+  --glass-strong:rgba(20,27,41,.92);
+  --glass-border:#222c3e;
+
+  --shadow-sm:0 1px 2px rgba(0,0,0,.30);
+  --shadow:0 1px 2px rgba(0,0,0,.28),0 10px 24px -12px rgba(0,0,0,.50);
+  --shadow-lg:0 26px 52px -22px rgba(0,0,0,.62),0 12px 26px -16px rgba(0,0,0,.46);
+  --app-bg:
+     radial-gradient(1100px 640px at 50% -25%, rgba(90,109,196,.16), transparent 70%),
+     #0a0f1a;
+}
+
+/* Tipografi: judul pakai Plus Jakarta Sans (ramah & modern),
+   teks isi tetap Inter yang enak dibaca. */
+.page-title,.page-header h2,.sidebar-logo-text,.stat-value,.modal-title,.rate-value,.card-title{
+  font-family:'Plus Jakarta Sans','Inter',-apple-system,BlinkMacSystemFont,sans-serif;
+}
+.page-title,.page-header h2{font-weight:700;letter-spacing:-.02em;}
+
+/* Kartu konten: kaca tipis & bersih (blur ringan = lebih kalem & jernih) */
+.card,.stat-card,.qa-card{
+  background:var(--glass-strong);
+  -webkit-backdrop-filter:blur(8px) saturate(120%);backdrop-filter:blur(8px) saturate(120%);
+  border:1px solid var(--glass-border);
+}
+.card-header{border-bottom-color:var(--glass-border);}
+.card-title svg{color:var(--accent);}
+
+/* Garis aksen tipis di atas stat-card dibuat lebih lembut */
+.stat-card::after{height:3px;opacity:.9;}
+
+/* Ikon stat kontekstual — versi kalem (saturasi diturunkan,
+   tetap mudah dibedakan per kategori). */
+.stat-card.ml{--ic-grad:linear-gradient(135deg,#7e9bd8,#5972bd);--ic-fg:#5972bd;}
+.stat-card.ff{--ic-grad:linear-gradient(135deg,#e6b483,#d2935e);--ic-fg:#cf8f57;}
+.stat-card.robux{--ic-grad:linear-gradient(135deg,#d79ab7,#c27ba0);--ic-fg:#c27ba0;}
+.stat-card.gp{--ic-grad:linear-gradient(135deg,#9d93d6,#7d72c0);--ic-fg:#7d72c0;}
+.stat-card.gold{--ic-grad:linear-gradient(135deg,#dec384,#c9a85d);--ic-fg:#c2a052;}
+.stat-card.green{--ic-grad:linear-gradient(135deg,#87c2a6,#5fa886);--ic-fg:#5fa886;}
+.stat-icon{box-shadow:0 8px 18px -10px var(--ic-fg,var(--accent));}
+
+/* Akses cepat & ikon aksen pakai gradien tenang */
+.qa-ic{background:var(--accent-grad);box-shadow:0 8px 18px -10px var(--accent);}
+
+/* Tombol primer: gradien kalem, lift halus, fokus lembut */
+.btn-primary{background:var(--accent-grad);box-shadow:0 8px 18px -10px var(--accent);}
+.btn-primary:hover{filter:brightness(1.04);box-shadow:0 14px 26px -12px var(--accent);}
+
+/* Sidebar: kaca lembut & indikator aktif yang tenang */
+.sidebar{background:var(--glass);border-right:1px solid var(--glass-border);}
+.nav-item.active{background:var(--accent-soft);color:var(--accent);}
+.nav-item.active::before{background:var(--accent-grad);}
+
+/* Tabel: baris hover bernuansa aksen yang sangat halus */
+tbody tr:hover td{background:var(--accent-soft);}
+
+/* Badge tetap pill, tapi sedikit lebih lembut */
+.badge{font-weight:600;}
+
+/* Input fokus: cincin lembut sesuai aksen */
+input:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:0 0 0 4px var(--ring);}
+
+/* ============================================================
+   CONTENT POLISH 2026 — penyelarasan isi SEMUA halaman
+   Lapisan final yang merapikan elemen di dalam tiap halaman
+   (callout, heading seksi, link, kode, daftar, dll.) sehingga
+   seluruh halaman tampil konsisten. Murni CSS additif, berlaku
+   global lewat render_page/BASE tanpa mengubah markup.
+   ============================================================ */
+
+/* Header tiap halaman: garis pemisah tipis (pola dashboard 2026) */
+.page-header{padding-bottom:1.05rem;border-bottom:1px solid var(--border);margin-bottom:1.4rem;}
+
+/* Heading seksi di dalam kartu (mis. Cek Self-Host, Insights) */
+.card-body > h3,.card-body > h4{
+  font-family:'Plus Jakarta Sans','Inter',sans-serif;
+  font-weight:700;letter-spacing:-.01em;color:var(--text);
+  margin:0 0 .5rem;font-size:1.02rem;line-height:1.3;
+}
+.card-body > h3:not(:first-child),.card-body > h4:not(:first-child){margin-top:1.4rem;}
+.card-body > h3 small,.card-body > h4 small{font-weight:500;color:var(--muted);}
+
+/* Catatan/callout: dari abu-abu polos -> kartu beraksen yang kalem */
+.note{
+  margin-top:1rem;padding:.85rem 1rem .85rem 1.05rem;
+  background:var(--accent-soft);border:1px solid var(--glass-border);
+  border-left:3px solid var(--accent);border-radius:10px;
+  font-size:.82rem;color:var(--text2);line-height:1.55;
+}
+.note b,.note strong{color:var(--text);}
+.note code{background:rgba(255,255,255,.55);}
+html[data-theme="dark"] .note code{background:rgba(255,255,255,.06);}
+
+/* Header sticky utk tabel yg ada di kontainer scroll vertikal */
+.table-wrapper{border-radius:10px;}
+
+/* Link di dalam konten kartu */
+.card-body a:not(.btn){color:var(--accent);text-decoration:none;border-bottom:1px solid transparent;transition:border-color .15s;}
+.card-body a:not(.btn):hover{border-bottom-color:var(--accent);}
+
+/* Pemisah, daftar, blok kode, kbd */
+hr{border:none;height:1px;background:var(--border);margin:1.25rem 0;}
+.card-body ul,.card-body ol{margin:.45rem 0 .45rem 1.15rem;padding:0;}
+.card-body li{margin:.2rem 0;font-size:.86rem;color:var(--text2);line-height:1.5;}
+pre{background:var(--surface3);border:1px solid var(--border);border-radius:10px;padding:.85rem 1rem;overflow:auto;font-size:.8rem;line-height:1.5;color:var(--text2);font-family:'SFMono-Regular',Consolas,monospace;}
+kbd{background:var(--surface3);border:1px solid var(--border2);border-bottom-width:2px;border-radius:6px;padding:.05rem .4rem;font-size:.75rem;font-family:'SFMono-Regular',Consolas,monospace;color:var(--text2);}
+
+/* Definition list (pasangan kunci/nilai) yg rapi */
+dl{display:grid;grid-template-columns:auto 1fr;gap:.35rem .9rem;margin:.5rem 0;font-size:.86rem;align-items:baseline;}
+dt{color:var(--muted2);font-weight:600;}
+dd{margin:0;color:var(--text);}
+
+/* Sentuhan akhir: radius selaras & empty state lebih lega */
+.rate-display{border-radius:var(--radius-sm);}
+.flash{border-radius:10px;}
+.empty{padding:2.75rem 1rem;}
+</style>
+</head>
+<body>
+<!-- Sidebar Overlay -->
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+
+<!-- Sidebar -->
+NAVPLACEHOLDER
+
+<!-- Main -->
+<div class="main">
+  <!-- Topbar Mobile -->
+  <div class="topbar">
+    <div class="topbar-logo">BRANDPLACEHOLDER</div>
+    <button class="hamburger" onclick="toggleSidebar()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+      </svg>
+    </button>
+  </div>
+  <div class="content">
+    FLASHPLACEHOLDER
+    CONTENTPLACEHOLDER
+  </div>
+</div>
+
+<!-- Command Palette -->
+<div class="modal-overlay" id="cmdPalette" style="align-items:flex-start;padding-top:12vh;">
+  <div class="modal" style="max-width:520px;padding:0;overflow:hidden;">
+    <input id="cmdInput" type="text" placeholder="Ketik untuk cari menu... (Esc untuk tutup)"
+      style="border:none;border-bottom:1px solid var(--border);border-radius:0;padding:1rem 1.2rem;font-size:.95rem;"
+      oninput="filterPalette()" onkeydown="paletteKey(event)">
+    <ul id="cmdList" style="list-style:none;max-height:340px;overflow-y:auto;"></ul>
+  </div>
+</div>
+
+<script>
+function toggleSidebar(){
+  document.querySelector('.sidebar').classList.toggle('open');
+  document.getElementById('sidebarOverlay').classList.toggle('active');
+}
+function closeSidebar(){
+  document.querySelector('.sidebar').classList.remove('open');
+  document.getElementById('sidebarOverlay').classList.remove('active');
+}
+function openModal(id){document.getElementById(id).classList.add('active');}
+function closeModal(id){document.getElementById(id).classList.remove('active');}
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'){
+    document.querySelectorAll('.modal-overlay.active').forEach(m=>m.classList.remove('active'));
+    closeSidebar();
+  }
+});
+document.querySelectorAll('.modal-overlay').forEach(m=>{
+  m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('active');});
+});
+
+/* THEME — default mode malam (dark) bila admin belum pernah memilih tema. */
+(function(){
+  var t = localStorage.getItem('cellyn-theme') || 'dark';
+  document.documentElement.setAttribute('data-theme', t);
+})();
+function toggleTheme(){
+  var cur = document.documentElement.getAttribute('data-theme')==='dark'?'light':'dark';
+  document.documentElement.setAttribute('data-theme', cur);
+  localStorage.setItem('cellyn-theme', cur);
+}
+
+/* SIDEBAR GROUPS (collapsible + ingat state) */
+function toggleGroup(btn){
+  var g=btn.closest('.nav-group'); if(!g) return;
+  g.classList.toggle('collapsed');
+  try{
+    var c=[];document.querySelectorAll('.nav-group.collapsed').forEach(function(x){c.push(x.getAttribute('data-grp'));});
+    localStorage.setItem('cellyn-nav', JSON.stringify(c));
+  }catch(_){}
+}
+function restoreNavState(){
+  var saved=null;
+  try{saved=JSON.parse(localStorage.getItem('cellyn-nav'));}catch(_){}
+  document.querySelectorAll('.nav-group').forEach(function(g){
+    var key=g.getAttribute('data-grp');
+    if(saved && saved.constructor===Array){
+      if(saved.indexOf(key)>-1) g.classList.add('collapsed'); else g.classList.remove('collapsed');
+    }
+    if(g.querySelector('.nav-item.active')) g.classList.remove('collapsed'); // selalu buka grup halaman aktif
+  });
+}
+/* Filter live menu sidebar */
+function filterNav(q){
+  q=(q||'').trim().toLowerCase();
+  var groups=document.querySelectorAll('.nav-group');
+  var empty=document.getElementById('navEmpty');
+  if(!q){
+    document.body.classList.remove('nav-filtering');
+    groups.forEach(function(g){
+      g.style.display='';
+      g.querySelectorAll('.nav-item').forEach(function(it){it.style.display='';});
+    });
+    if(empty) empty.style.display='none';
+    restoreNavState();
+    return;
+  }
+  document.body.classList.add('nav-filtering');
+  var hits=0;
+  groups.forEach(function(g){
+    var any=false;
+    g.classList.remove('collapsed'); // buka semua grup saat mencari
+    g.querySelectorAll('.nav-item').forEach(function(it){
+      var m=(it.textContent||'').toLowerCase().indexOf(q)>-1;
+      it.style.display=m?'':'none';
+      if(m){any=true;hits++;}
+    });
+    g.style.display=any?'':'none';
+  });
+  if(empty) empty.style.display=hits?'none':'block';
+}
+function navSearchKey(e){ if(e.key==='Escape'){e.target.value='';filterNav('');e.target.blur();} }
+restoreNavState();
+
+/* COMMAND PALETTE */
+var CMD_ITEMS=[
+  {t:'Dashboard',u:'/'},{t:'Mobile Legends',u:'/ml'},{t:'Free Fire',u:'/ff'},
+  {t:'Robux Store',u:'/robux'},{t:'GP Topup',u:'/gp'},{t:'Lainnya',u:'/lainnya'},
+  {t:'QRIS',u:'/qr'},{t:'Analitik',u:'/analytics'},{t:'Transaksi',u:'/transactions'},
+  {t:'Tiket Aktif',u:'/tickets'},{t:'Performa Admin',u:'/admins'},
+  {t:'Pelanggan',u:'/customers'},
+  {t:'Monitor Garansi',u:'/warranty'},
+  {t:'Editor Profil',u:'/profil-theme'},{t:'Editor Badge',u:'/badge-theme'},
+  {t:'Editor Kartu',u:'/card-theme'},
+  {t:'Editor Testimoni',u:'/rating-theme'},
+  {t:'Media Katalog',u:'/catalog-thumbnails'},
+  {t:'Emoji Katalog',u:'/lainnya/emoji'},
+  {t:'Cek Self-Host',u:'/self-host-check'},
+  {t:'Editor FAQ',u:'/faq-editor'},
+  {t:'Sticky Message',u:'/sticky-manager'},
+  {t:'Pusat Teks Bot',u:'/text-center'},
+  {t:'Backup Teks',u:'/text-backup'},
+  {t:'Riwayat Teks',u:'/text-audit'},
+  {t:'Backup Database',u:'/db-backup'},
+  {t:'Pesan Member',u:'/welcome-editor'},
+  {t:'DM Sambutan',u:'/dm-editor'},
+  {t:'DM Perpanjangan',u:'/subfollowup-editor'},
+  {t:'Papan Top Spender',u:'/topspender-editor'},
+  {t:'Kartu Top Spender',u:'/topspender-card'},
+  {t:'Teks /help',u:'/help-editor'},
+  {t:'Teks Badge & Profil',u:'/profiltext-editor'},
+  {t:'Teks Pencarian',u:'/psearch-editor'},
+  {t:'Statistik Member',u:'/serverstats-editor'},
+  {t:'Pesan AFK',u:'/afk-editor'},
+  {t:'Status Toko',u:'/store-status-editor'},
+  {t:'Pesan Garansi',u:'/warranty-editor'},
+  {t:'Teks Antrian',u:'/queue-editor'},
+  {t:'Pesan Order',u:'/order-editor'},
+  {t:'Pesan Rating',u:'/review-editor'},
+  {t:'Panel Midman',u:'/midman-editor'},
+  {t:'Katalog Vilog',u:'/vilog-editor'},
+  {t:'Katalog GP',u:'/gp-editor'},
+  {t:'Katalog Robux',u:'/robux-editor'},
+  {t:'Katalog ML',u:'/ml-editor'},
+  {t:'Katalog Lainnya',u:'/lainnya-editor'},
+  {t:'Info Kategori Lainnya',u:'/lainnya-info-editor'},
+  {t:'Teks FAQ',u:'/faq-text-editor'},
+  {t:'Rating & Ulasan',u:'/reviews'},{t:'Info Layanan',u:'/service-info'},
+  {t:'Embed Builder',u:'/embeds'},{t:'AutoPost',u:'/autopost'}
+];
+var _palIdx=0;
+function openPalette(){
+  document.getElementById('cmdPalette').classList.add('active');
+  var i=document.getElementById('cmdInput');i.value='';renderPalette(CMD_ITEMS);
+  setTimeout(function(){i.focus();},30);
+}
+function closePalette(){document.getElementById('cmdPalette').classList.remove('active');}
+function renderPalette(items){
+  _palIdx=0;
+  var html=items.map(function(it,n){
+    return '<li onclick="location.href=\''+it.u+'\'" data-u="'+it.u+'" '+
+      'style="padding:.7rem 1.2rem;cursor:pointer;font-size:.88rem;'+(n===0?'background:var(--surface3);':'')+'" '+
+      'onmouseover="this.style.background=\'var(--surface3)\'" onmouseout="this.style.background=\'\'">'+it.t+
+      '<span style="float:right;color:var(--muted);font-size:.75rem;">'+it.u+'</span></li>';
+  }).join('');
+  document.getElementById('cmdList').innerHTML = html || '<li class="empty">Tidak ada hasil</li>';
+}
+function filterPalette(){
+  var q=document.getElementById('cmdInput').value.toLowerCase();
+  renderPalette(CMD_ITEMS.filter(function(it){return it.t.toLowerCase().indexOf(q)>=0;}));
+}
+function paletteKey(e){
+  var lis=document.querySelectorAll('#cmdList li[data-u]');
+  if(e.key==='Enter'&&lis[_palIdx]){location.href=lis[_palIdx].getAttribute('data-u');}
+  else if(e.key==='ArrowDown'){_palIdx=Math.min(_palIdx+1,lis.length-1);_hl(lis);e.preventDefault();}
+  else if(e.key==='ArrowUp'){_palIdx=Math.max(_palIdx-1,0);_hl(lis);e.preventDefault();}
+}
+function _hl(lis){lis.forEach(function(l,n){l.style.background=n===_palIdx?'var(--surface3)':'';});}
+document.addEventListener('keydown',function(e){
+  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();openPalette();}
+  if(e.key==='Escape'){closePalette();}
+});
+</script>
+<!-- Transisi halaman (fade-out saat pindah, fade-in saat tiba) -->
+<script>
+(function(){
+  var reduce=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  window.addEventListener('pageshow',function(){document.body.classList.remove('is-leaving');});
+  if(reduce) return;
+  document.addEventListener('click',function(e){
+    if(e.defaultPrevented||e.button!==0||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey) return;
+    var a=e.target.closest?e.target.closest('a'):null;
+    if(!a) return;
+    var href=a.getAttribute('href');
+    if(!href||a.hasAttribute('download')) return;
+    if(a.target&&a.target!=='_self') return;
+    if(href.charAt(0)==='#'||/^(javascript|mailto|tel):/i.test(href)) return;
+    var url;
+    try{url=new URL(href,location.href);}catch(_){return;}
+    if(url.origin!==location.origin) return;
+    if(url.pathname===location.pathname&&url.search===location.search) return;
+    e.preventDefault();
+    document.body.classList.add('is-leaving');
+    setTimeout(function(){location.href=url.href;},170);
+  });
+})();
+</script>
+</body>
+</html>"""
+
+
+def render_page(content, **ctx):
+    from flask import get_flashed_messages
+    nav = ""
+    if session.get("logged_in"):
+        ep = request.endpoint
+        def _a(label, href, icon, ep_name):
+            active = "active" if ep == ep_name else ""
+            return f'''<a href="{href}" class="nav-item {active}">
+              {icon}<span>{label}</span>
+            </a>'''
+        ico_dash  = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>'
+        ico_ml    = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 3"/></svg>'
+        ico_ff    = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>'
+        ico_robux = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>'
+        ico_out   = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>'
+        _chev = '<svg class="nav-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>'
+        def _grp(title, key, open_=True):
+            cls = "" if open_ else " collapsed"
+            return (f'<div class="nav-group{cls}" data-grp="{key}">'
+                    f'<button type="button" class="nav-section nav-toggle" onclick="toggleGroup(this)">'
+                    f'<span>{title}</span>{_chev}</button><div class="nav-group-items">')
+        def _grpend():
+            return '</div></div>'
+        nav = f'''<aside class="sidebar">
+  <div class="sidebar-logo">
+    <img src="https://i.imgur.com/xp2F452.png" alt="logo">
+    <div class="sidebar-logo-text">{ADMIN_BRAND}<span>Store Management</span></div>
+  </div>
+  <div class="sidebar-search">
+    <div class="nav-search-box">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input id="navSearch" type="text" placeholder="Cari menu..." autocomplete="off" spellcheck="false" oninput="filterNav(this.value)" onkeydown="navSearchKey(event)">
+    </div>
+  </div>
+  <nav class="sidebar-nav">
+    <div class="nav-empty" id="navEmpty">Menu tidak ditemukan</div>
+    {_grp("Menu", "menu", True)}
+    {_a("Dashboard", "/", ico_dash, "index")}
+    {_grpend()}
+    {_grp("Produk", "produk", True)}
+    {_a("Mobile Legends", "/ml", ico_ml, "page_ml")}
+    {_a("Free Fire", "/ff", ico_ff, "page_ff")}
+    {_a("Robux Store", "/robux", ico_robux, "page_robux")}
+    {_a("GP Topup", "/gp", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>', "page_gp")}
+    {_a("Lainnya", "/lainnya", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>', "page_lainnya")}
+    {_grpend()}
+    {_grp("Penjualan &amp; Insight", "insight", True)}
+    {_a("Analitik", "/analytics", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 3v18h18"/><rect x="7" y="11" width="3" height="6"/><rect x="12" y="7" width="3" height="10"/><rect x="17" y="13" width="3" height="4"/></svg>', "insights_bp.page_analytics")}
+    {_a("Transaksi", "/transactions", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 6h18M3 12h18M3 18h12"/></svg>', "insights_bp.page_transactions")}
+    {_a("Pelanggan", "/customers", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>', "insights_bp.page_customers")}
+    {_a("Monitor Garansi", "/warranty", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>', "insights_bp.page_warranty")}
+    {_a("Tiket Aktif", "/tickets", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v3a2 2 0 0 0 0 4v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-3a2 2 0 0 0 0-4z"/></svg>', "insights_bp.page_tickets")}
+    {_a("Performa Admin", "/admins", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/></svg>', "insights_bp.page_admins")}
+    {_a("Rating &amp; Ulasan", "/reviews", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>', "page_reviews")}
+    {_a("Pencarian Nihil", "/search-misses", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></svg>', "page_search_misses")}
+    {_grpend()}
+    {_grp("Tampilan &amp; Profil", "tampilan", False)}
+    {_a("Editor Profil", "/profil-theme", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"/></svg>', "theme_bp.page_theme")}
+    {_a("Editor Badge", "/badge-theme", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="6"/><path d="M8.5 13.5L7 22l5-3 5 3-1.5-8.5"/></svg>', "badge_theme_bp.page_theme")}
+    {_a("Editor Kartu", "/card-theme", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 11l-3 3-2-2"/></svg>', "welcome_theme_bp.page_theme")}
+    {_a("Editor Testimoni", "/rating-theme", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>', "rating_theme_bp.page_theme")}
+    {_a("Kartu Top Spender", "/topspender-card", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M5 4H3v2a3 3 0 0 0 3 3M19 4h2v2a3 3 0 0 1-3 3"/></svg>', "topspender_card_bp.page_card")}
+    {_a("Media Katalog", "/catalog-thumbnails", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>', "catalog_thumb_bp.page")}
+    {_a("Emoji Katalog", "/lainnya/emoji", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>', "lainnya_emoji_bp.page")}
+    {_grpend()}
+    {_grp("Teks &amp; Pesan Bot", "teks", False)}
+    {_a("Pusat Teks Bot", "/text-center", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7V4h16v3"/><path d="M9 20h6"/><path d="M12 4v16"/></svg>', "text_center_bp.page_text_center")}
+    {_a("Pesan Member", "/welcome-editor", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>', "welcome_bp.page_welcome")}
+    {_a("DM Sambutan", "/dm-editor", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 5L2 7"/></svg>', "welcome_bp.page_dm")}
+    {_a("DM Perpanjangan", "/subfollowup-editor", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>', "sub_followup_bp.page_sub_followup")}
+    {_a("Papan Top Spender", "/topspender-editor", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M5 4H3v2a3 3 0 0 0 3 3M19 4h2v2a3 3 0 0 1-3 3"/></svg>', "top_spender_bp.page_top_spender")}
+    {_a("Teks /help", "/help-editor", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>', "help_bp.page_help")}
+    {_a("Teks Badge & Profil", "/profiltext-editor", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"/></svg>', "profile_text_bp.page_profile_text")}
+    {_a("Teks Pencarian", "/psearch-editor", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>', "psearch_bp.page_psearch")}
+    {_a("Statistik Member", "/serverstats-editor", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>', "server_stats_bp.page_server_stats")}
+    {_a("Pesan AFK", "/afk-editor", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>', "afk_bp.page_afk")}
+    {_a("Status Toko", "/store-status-editor", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 9l1-5h16l1 5"/><path d="M5 9v11h14V9"/><path d="M9 20v-6h6v6"/></svg>', "store_status_bp.page_store_status")}
+    {_a("Pesan Garansi", "/warranty-editor", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>', "warranty_bp.page_warranty")}
+    {_a("Teks Antrian", "/queue-editor", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>', "queue_text_bp.page_queue")}
+    {_a("Pesan Order", "/order-editor", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>', "order_bp.page_order")}
+    {_a("Pesan Rating", "/review-editor", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>', "review_bp.page_review")}
+    {_a("Editor FAQ", "/faq-editor", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 19l-7 3V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v9"/><path d="M9.5 8.5a2.5 2.5 0 1 1 3 2.45V13"/><line x1="12.5" y1="16" x2="12.5" y2="16"/></svg>', "faq_bp.page_faq")}
+    {_a("Teks FAQ", "/faq-text-editor", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><line x1="8" y1="9" x2="16" y2="9"/><line x1="8" y1="13" x2="13" y2="13"/></svg>', "faq_text_bp.page_faq_text")}
+    {_grpend()}
+    {_grp("Editor Katalog &amp; Info", "katalog", False)}
+    {_a("Panel Midman", "/midman-editor", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>', "midman_bp.page_midman")}
+    {_a("Katalog Vilog", "/vilog-editor", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>', "vilog_bp.page_vilog")}
+    {_a("Katalog GP", "/gp-editor", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>', "gp_bp.page_gp")}
+    {_a("Katalog Robux", "/robux-editor", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M9 9h4a2 2 0 0 1 0 4H9zM9 13l4 4"/></svg>', "robux_bp.page_robux")}
+    {_a("Katalog ML", "/ml-editor", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polygon points="12 2 19 7 19 17 12 22 5 17 5 7 12 2"/></svg>', "ml_bp.page_ml")}
+    {_a("Katalog Lainnya", "/lainnya-editor", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>', "lainnya_text_bp.page_lainnya_text")}
+    {_a("Info Kategori Lainnya", "/lainnya-info-editor", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h8"/></svg>', "lainnya_info_bp.page_lainnya_info")}
+    {_a("Info Layanan", "/service-info", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>', "page_service_info")}
+    {_grpend()}
+    {_grp("Pengaturan &amp; Alat", "alat", False)}
+    {_a("QRIS", "/qr", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h3v3h-3zM17 17h3v3h-3zM14 20h3"/></svg>', "page_qr")}
+    {_a("Embed Builder", "/embeds", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M8 10h8M8 14h5"/></svg>', "page_embeds")}
+    {_a("AutoPost", "/autopost", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>', "page_autopost")}
+    {_a("Sticky Message", "/sticky-manager", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M15 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9z"/><path d="M15 3v6h6"/></svg>', "sticky_bp.page_sticky")}
+    {_a("Backup Teks", "/text-backup", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>', "text_backup_bp.page_text_backup")}
+    {_a("Riwayat Teks", "/text-audit", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>', "text_audit_bp.page_text_audit")}
+    {_a("Backup Database", "/db-backup", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/><path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3"/></svg>', "db_backup_bp.page_db_backup")}
+    {_a("Cek Self-Host", "/self-host-check", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 12l2 2 4-4"/><path d="M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9c1.66 0 3.22.45 4.56 1.24"/></svg>', "selfhost_bp.page")}
+    {_grpend()}
+  </nav>
+  <div class="sidebar-footer">
+    <div style="display:flex;gap:.4rem;margin-bottom:.5rem;">
+      <button onclick="openPalette()" class="nav-item" style="flex:1;justify-content:center;border:1px solid var(--border);background:var(--surface2);" title="Cari (Ctrl+K)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.3-4.3"/></svg><span style="font-size:.78rem;">Cari</span>
+      </button>
+      <button onclick="toggleTheme()" class="nav-item" style="justify-content:center;border:1px solid var(--border);background:var(--surface2);" title="Ganti tema">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+      </button>
+    </div>
+    <a href="/logout" class="nav-logout">{ico_out}<span>Logout</span></a>
+  </div>
+</aside>'''
+    msgs = get_flashed_messages(with_categories=True)
+    flash_html = ""
+    if msgs:
+        flash_html = '<ul class="flash-list">'
+        for cat, msg in msgs:
+            flash_html += f'<li class="flash flash-{cat}">{msg}</li>'
+        flash_html += '</ul>'
+    html = BASE.replace("NAVPLACEHOLDER", nav).replace("FLASHPLACEHOLDER", flash_html).replace("CONTENTPLACEHOLDER", content).replace("BRANDPLACEHOLDER", ADMIN_BRAND)
+    return render_template_string(html, **ctx)
+
+
+# ── LOGIN ─────────────────────────────────────────────────────────────────────
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    error = ""
+    if request.method == "POST":
+        if request.form.get("password", "").strip() == ADMIN_PASSWORD:
+            session["logged_in"] = True
+            return redirect(url_for("index"))
+        error = "Password salah."
+    content = f"""
+<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:1rem;background:transparent;">
+  <div style="width:100%;max-width:380px;">
+    <div style="text-align:center;margin-bottom:2rem;">
+      <img src="https://i.imgur.com/xp2F452.png" alt="logo" style="width:64px;height:64px;border-radius:14px;margin-bottom:1rem;box-shadow:var(--shadow);">
+      <div style="font-size:1.4rem;font-weight:700;letter-spacing:-.02em;color:var(--text);">{ADMIN_BRAND}</div>
+      <div style="color:var(--muted);font-size:.8rem;margin-top:.25rem;">Store Management Panel</div>
+    </div>
+    <div class="card">
+      <div class="card-header"><span class="card-title">Login</span></div>
+      <div style="padding:1.5rem;">
+        <form method="post">
+          <div class="form-group" style="margin-bottom:1.25rem;">
+            <label>Password Admin</label>
+            <input type="password" name="password" placeholder="••••••••" autofocus required>
+          </div>
+          {'<div class="flash flash-error" style="margin-bottom:1rem;">'+error+'</div>' if error else ''}
+          <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;padding:.7rem;">
+            Masuk
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>"""
+    return render_page(content)
+
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect(url_for("login"))
+
+
+# ── DASHBOARD ─────────────────────────────────────────────────────────────────
+ICONS = {
+  "ml": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="3"/><line x1="7" y1="11" x2="7" y2="13"/><line x1="6" y1="12" x2="8" y2="12"/><circle cx="16" cy="11" r="1"/><circle cx="18.5" cy="13.5" r="1"/></svg>',
+  "ff": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2c1 3-1 4-2 6-1 2 0 4 2 4s3-2 2-4c3 1 5 4 5 7a7 7 0 0 1-14 0c0-2 1-4 3-5"/></svg>',
+  "robux": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 5l1.5 14h11L19 5z"/><path d="M5 9h14"/><path d="M10 5l-1 14M14 5l1 14"/></svg>',
+  "money": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 12h.01M18 12h.01"/></svg>',
+  "star": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15 9 22 9.3 16.5 14 18.5 21 12 17 5.5 21 7.5 14 2 9.3 9 9 12 2"/></svg>',
+  "cart": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/><path d="M2 3h3l2.4 12.4a2 2 0 0 0 2 1.6h7.7a2 2 0 0 0 2-1.6L22 7H6"/></svg>',
+  "bolt": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 4 14 11 14 11 22 20 10 13 10 13 2"/></svg>',
+  "tag": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.6 13.4L13 21a2 2 0 0 1-2.8 0L3 13.8V4h9.8z"/><circle cx="8" cy="8" r="1.3"/></svg>',
+}
+
+@app.route("/")
+@login_required
+def index():
+    import datetime as _dt
+    conn = get_conn()
+    ml_count = conn.execute("SELECT COUNT(*) FROM ml_products").fetchone()[0]
+    ff_count = conn.execute("SELECT COUNT(*) FROM ff_products").fetchone()[0]
+    robux_count = conn.execute("SELECT COUNT(*) FROM robux_products WHERE active=1").fetchone()[0]
+    row = conn.execute("SELECT rate FROM robux_rate WHERE id=1").fetchone()
+    rate = row[0] if row else 0
+    conn.close()
+    rate_str = f"Rp {rate:,}".replace(",", ".") if rate else "Belum diset"
+    # Ringkasan transaksi & rating hari ini (dari utils.reviews).
+    try:
+        from utils import reviews as _rv
+        _today = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%d")
+        _rep = _rv.get_daily_report(_today)
+        tx_today = _rep["total_tx"]; omzet_today = _rep["total_omzet"]
+        _st = _rv.get_stats()
+        rating_avg = _st["average"]; rating_n = _st["count"]
+    except Exception:
+        tx_today = omzet_today = rating_n = 0; rating_avg = 0.0
+    omzet_str = ("Rp " + f"{omzet_today:,}".replace(",", ".")) if omzet_today else "Rp 0"
+    rating_str = f"{rating_avg:.1f}/5" if rating_n else "-"
+
+    # Chart omzet 14 hari terakhir + jumlah tiket aktif (live).
+    from datetime import date as _date, timedelta as _td
+    conn2 = get_conn()
+    try:
+        _drows = conn2.execute(
+            "SELECT date(closed_at) AS tgl, COALESCE(SUM(nominal),0) AS omzet "
+            "FROM transaction_log WHERE closed_at >= date('now','-13 days') "
+            "GROUP BY date(closed_at)"
+        ).fetchall()
+    except Exception:
+        _drows = []
+    _omap = {r["tgl"]: (r["omzet"] or 0) for r in _drows}
+    _today_d = _date.today()
+    _days14 = [(_today_d - _td(days=i)).isoformat() for i in range(13, -1, -1)]
+    chart_labels = [d[-5:] for d in _days14]
+    chart_omzet = [int(_omap.get(d, 0)) for d in _days14]
+    # Hitung tiket aktif lintas-tabel (best-effort).
+    active_tickets = 0
+    for _t in ("tickets", "gp_tickets", "robux_tickets", "vilog_tickets",
+               "ml_tickets", "jb_tickets", "lainnya_tickets"):
+        try:
+            active_tickets += conn2.execute(f"SELECT COUNT(*) FROM {_t}").fetchone()[0]
+        except Exception:
+            pass
+    conn2.close()
+
+    def _stat(cls, icon, label, value, sub):
+        return f'''<div class="stat-card {cls}">
+          <div class="stat-top"><div class="stat-icon">{ICONS[icon]}</div></div>
+          <div class="stat-label">{label}</div>
+          <div class="stat-value">{value}</div>
+          <div class="stat-sub">{sub}</div>
+        </div>'''
+    def _qa(href, icon, title, sub):
+        return f'''<a class="qa-card" href="{href}"><div class="qa-ic">{ICONS[icon]}</div>
+          <div class="qa-tx"><span class="qa-tt">{title}</span><span class="qa-sb">{sub}</span></div></a>'''
+    content = f"""
+<div class="page-header">
+  <div class="page-title">Dashboard <small>Ringkasan toko hari ini</small></div>
+</div>
+<div class="stats-grid">
+  {_stat("green", "cart", "Transaksi Hari Ini", tx_today, "transaksi selesai")}
+  {_stat("gold", "money", "Omzet Hari Ini", omzet_str, "total pemasukan")}
+  {_stat("robux", "star", "Rating Toko", rating_str, f"{rating_n} ulasan total")}
+  {_stat("ml", "cart", "Tiket Aktif", active_tickets, "semua layanan")}
+</div>
+<div class="card">
+  <div class="card-header"><span class="card-title">{ICONS["money"]} Omzet 14 Hari Terakhir</span>
+    <a href="/transactions" class="btn btn-ghost btn-sm">Lihat transaksi</a></div>
+  <div class="card-body"><canvas id="dashChart" height="90"></canvas></div>
+</div>
+<div class="stats-grid">
+  {_stat("ml", "ml", "Mobile Legends", ml_count, "produk aktif")}
+  {_stat("ff", "ff", "Free Fire", ff_count, "produk aktif")}
+  {_stat("robux", "robux", "Robux Store", robux_count, "item aktif")}
+</div>
+<div class="card">
+  <div class="card-header"><span class="card-title">{ICONS["robux"]} Rate Robux</span></div>
+  <div class="card-body">
+    <div class="rate-display">
+      <div>
+        <div style="font-size:.75rem;color:var(--muted);margin-bottom:.25rem;">Rate saat ini</div>
+        <div class="rate-value">{rate_str}<span style="font-size:.9rem;color:var(--muted);font-weight:400">/Robux</span></div>
+      </div>
+      <form method="post" action="/robux/rate" class="inline-form">
+        <input type="number" name="rate" placeholder="Rate baru" min="1" style="width:140px;" required>
+        <button type="submit" class="btn btn-primary btn-sm">Update</button>
+      </form>
+    </div>
+  </div>
+</div>
+<div class="card">
+  <div class="card-header"><span class="card-title">{ICONS["bolt"]} Akses Cepat</span></div>
+  <div class="card-body">
+    <div class="qa-grid">
+      {_qa("/transactions", "money", "Transaksi", "riwayat & export")}
+      {_qa("/tickets", "cart", "Tiket Aktif", "monitor live")}
+      {_qa("/admins", "star", "Performa Admin", "ranking staff")}
+      {_qa("/robux", "robux", "Kelola Robux", "produk & rate")}
+      {_qa("/ml", "ml", "Kelola ML/FF", "produk topup")}
+      {_qa("/analytics", "money", "Analitik", "tren, produk laris & jam sibuk")}
+    </div>
+  </div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script>
+new Chart(document.getElementById('dashChart'), {{
+  type:'line',
+  data:{{labels:{chart_labels},datasets:[{{label:'Omzet',data:{chart_omzet},
+    borderColor:'#5a6dc4',backgroundColor:'rgba(90,109,196,.12)',borderWidth:2,
+    pointRadius:2,fill:true,tension:.4}}]}},
+  options:{{responsive:true,plugins:{{legend:{{display:false}}}},
+    scales:{{x:{{grid:{{color:'rgba(148,163,184,.15)'}},ticks:{{color:'#94a3b8',font:{{size:10}}}}}},
+    y:{{grid:{{color:'rgba(148,163,184,.15)'}},ticks:{{color:'#94a3b8',font:{{size:10}}}},beginAtZero:true}}}}}}
+}});
+</script>"""
+    return render_page(content)
+
+# ── ML / GAMES ─────────────────────────────────────────────────────────────────
+@app.route("/ml")
+@login_required
+def page_ml():
+    conn = get_conn()
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS games ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, code TEXT NOT NULL UNIQUE, "
+        "name TEXT NOT NULL, color INTEGER DEFAULT 3407872, "
+        "needs_server INTEGER DEFAULT 0, id_label TEXT DEFAULT 'Player ID', "
+        "active INTEGER DEFAULT 1)"
+    )
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS game_products ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, game_code TEXT NOT NULL, "
+        "label TEXT NOT NULL, dm INTEGER NOT NULL DEFAULT 0, "
+        "harga INTEGER NOT NULL, active INTEGER DEFAULT 1)"
+    )
+    conn.commit()
+    games = conn.execute("SELECT * FROM games ORDER BY id").fetchall()
+    selected_game = request.args.get("game", games[0]["code"] if games else "")
+    products = conn.execute(
+        "SELECT * FROM game_products WHERE game_code=? ORDER BY dm, id", (selected_game,)
+    ).fetchall() if selected_game else []
+    conn.close()
+
+    game_tabs = "".join(
+        f'<a href="/ml?game={g["code"]}" class="btn {"btn-primary" if g["code"]==selected_game else "btn-ghost"} btn-sm">{g["name"]}</a>'
+        for g in games
+    )
+    rows = "".join(f"""<tr>
+      <td style="color:var(--muted)">{i+1}</td>
+      <td>{p['label']}</td>
+      <td style="color:var(--muted)">{p['dm']}</td>
+      <td>Rp {p['harga']:,}</td>
+      <td><span style="color:{'var(--success)' if p['active'] else 'var(--danger)'};font-size:.8rem;">{'Aktif' if p['active'] else 'Nonaktif'}</span></td>
+      <td><div style="display:flex;gap:.5rem;">
+        <button class="btn btn-ghost btn-sm" onclick="openEditProd({p['id']},'{p['label'].replace(chr(39), chr(92)+chr(39))}',{p['dm']},{p['harga']})">Edit</button>
+        <form method="post" action="/ml/product/toggle/{p['id']}?game={selected_game}" style="display:inline;">
+          <button type="submit" class="btn btn-sm {'btn-danger' if p['active'] else 'btn-success'}">{'Nonaktifkan' if p['active'] else 'Aktifkan'}</button>
+        </form>
+        <form method="post" action="/ml/product/delete/{p['id']}?game={selected_game}" style="display:inline;" onsubmit="return confirm('Hapus produk ini?')">
+          <button type="submit" class="btn btn-danger btn-sm">Hapus</button>
+        </form>
+      </div></td>
+    </tr>""" for i, p in enumerate(products)) or f'<tr><td colspan="6" class="empty">Belum ada produk untuk {selected_game}</td></tr>'
+
+    game_rows = "".join(f"""<tr>
+      <td style="color:var(--muted)">{i+1}</td>
+      <td><span class="badge badge-ml">{g['code']}</span></td>
+      <td>{g['name']}</td>
+      <td>{'Ya' if g['needs_server'] else 'Tidak'}</td>
+      <td>{g['id_label']}</td>
+      <td><span style="color:{'var(--success)' if g['active'] else 'var(--danger)'};font-size:.8rem;">{'Aktif' if g['active'] else 'Nonaktif'}</span></td>
+      <td><div style="display:flex;gap:.5rem;">
+        <button class="btn btn-ghost btn-sm" onclick="openEditGame({g['id']},'{g['code']}','{g['name'].replace(chr(39),chr(92)+chr(39))}',{g['needs_server']},'{g['id_label'].replace(chr(39),chr(92)+chr(39))}')">Edit</button>
+        <form method="post" action="/ml/game/toggle/{g['id']}" style="display:inline;">
+          <button type="submit" class="btn btn-sm {'btn-danger' if g['active'] else 'btn-success'}">{'Nonaktifkan' if g['active'] else 'Aktifkan'}</button>
+        </form>
+      </div></td>
+    </tr>""" for i, g in enumerate(games)) or '<tr><td colspan="7" class="empty">Belum ada game</td></tr>'
+
+    game_opts = "".join(
+        f'<option value="{g["code"]}" {"selected" if g["code"]==selected_game else ""}>{g["name"]}</option>'
+        for g in games
+    )
+    content = f"""
+<div class="page-header">
+  <div class="page-title">Topup Game <small>{len(games)} game</small></div>
+  <button class="btn btn-primary" onclick="openModal('modal-add-game')">+ Tambah Game</button>
+</div>
+<div class="card" style="margin-bottom:1.5rem;"><table>
+  <thead><tr><th>#</th><th>Kode</th><th>Nama</th><th>Server ID?</th><th>Label ID</th><th>Status</th><th>Aksi</th></tr></thead>
+  <tbody>{game_rows}</tbody>
+</table></div>
+<div class="page-header" style="margin-top:2rem;">
+  <div class="page-title">Produk <small>filter per game</small></div>
+  <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;">{game_tabs}
+    <button class="btn btn-primary btn-sm" onclick="openModal('modal-add-prod')">+ Tambah Produk</button>
+  </div>
+</div>
+<div class="card"><table>
+  <thead><tr><th>#</th><th>Label</th><th>DM/Qty</th><th>Harga</th><th>Status</th><th>Aksi</th></tr></thead>
+  <tbody>{rows}</tbody>
+</table></div>
+<div class="modal-overlay" id="modal-add-game"><div class="modal">
+  <div class="modal-title">Tambah Game</div>
+  <form method="post" action="/ml/game/add">
+    <div class="form-grid form-grid-2">
+      <div class="form-group"><label>Kode Game</label><input type="text" name="code" placeholder="contoh: PUBG" required></div>
+      <div class="form-group"><label>Nama Game</label><input type="text" name="name" placeholder="contoh: PUBG Mobile" required></div>
+    </div>
+    <div class="form-grid form-grid-2" style="margin-top:1rem;">
+      <div class="form-group"><label>Label ID Player</label><input type="text" name="id_label" placeholder="contoh: Player ID PUBG" required></div>
+      <div class="form-group"><label>Butuh Server ID?</label><select name="needs_server"><option value="0">Tidak</option><option value="1">Ya</option></select></div>
+    </div>
+    <div class="form-actions" style="margin-top:1.5rem;">
+      <button type="submit" class="btn btn-primary">Simpan</button>
+      <button type="button" class="btn btn-ghost" onclick="closeModal('modal-add-game')">Batal</button>
+    </div>
+  </form>
+</div></div>
+<div class="modal-overlay" id="modal-edit-game"><div class="modal">
+  <div class="modal-title">Edit Game</div>
+  <form method="post" action="/ml/game/edit">
+    <input type="hidden" name="id" id="edit-game-id">
+    <div class="form-grid form-grid-2">
+      <div class="form-group"><label>Kode Game</label><input type="text" name="code" id="edit-game-code" required></div>
+      <div class="form-group"><label>Nama Game</label><input type="text" name="name" id="edit-game-name" required></div>
+    </div>
+    <div class="form-grid form-grid-2" style="margin-top:1rem;">
+      <div class="form-group"><label>Label ID Player</label><input type="text" name="id_label" id="edit-game-idlabel" required></div>
+      <div class="form-group"><label>Butuh Server ID?</label><select name="needs_server" id="edit-game-server"><option value="0">Tidak</option><option value="1">Ya</option></select></div>
+    </div>
+    <div class="form-actions" style="margin-top:1.5rem;">
+      <button type="submit" class="btn btn-primary">Simpan</button>
+      <button type="button" class="btn btn-ghost" onclick="closeModal('modal-edit-game')">Batal</button>
+    </div>
+  </form>
+</div></div>
+<div class="modal-overlay" id="modal-add-prod"><div class="modal">
+  <div class="modal-title">Tambah Produk</div>
+  <form method="post" action="/ml/product/add?game={selected_game}">
+    <div class="form-group"><label>Game</label><select name="game_code">{game_opts}</select></div>
+    <div class="form-group" style="margin-top:1rem;"><label>Label Produk</label><input type="text" name="label" placeholder="contoh: 86 Diamond" required></div>
+    <div class="form-grid form-grid-2" style="margin-top:1rem;">
+      <div class="form-group"><label>DM / Qty</label><input type="number" name="dm" placeholder="contoh: 86" min="0" required></div>
+      <div class="form-group"><label>Harga (Rp)</label><input type="number" name="harga" placeholder="contoh: 15000" min="1" required></div>
+    </div>
+    <div class="form-actions" style="margin-top:1.5rem;">
+      <button type="submit" class="btn btn-primary">Simpan</button>
+      <button type="button" class="btn btn-ghost" onclick="closeModal('modal-add-prod')">Batal</button>
+    </div>
+  </form>
+</div></div>
+<div class="modal-overlay" id="modal-edit-prod"><div class="modal">
+  <div class="modal-title">Edit Produk</div>
+  <form method="post" action="/ml/product/edit?game={selected_game}">
+    <input type="hidden" name="id" id="edit-prod-id">
+    <div class="form-group"><label>Label Produk</label><input type="text" name="label" id="edit-prod-label" required></div>
+    <div class="form-grid form-grid-2" style="margin-top:1rem;">
+      <div class="form-group"><label>DM / Qty</label><input type="number" name="dm" id="edit-prod-dm" min="0" required></div>
+      <div class="form-group"><label>Harga (Rp)</label><input type="number" name="harga" id="edit-prod-harga" min="1" required></div>
+    </div>
+    <div class="form-actions" style="margin-top:1.5rem;">
+      <button type="submit" class="btn btn-primary">Simpan</button>
+      <button type="button" class="btn btn-ghost" onclick="closeModal('modal-edit-prod')">Batal</button>
+    </div>
+  </form>
+</div></div>
+<script>
+function openEditGame(id,code,name,needs,idlabel){{
+  document.getElementById('edit-game-id').value=id;
+  document.getElementById('edit-game-code').value=code;
+  document.getElementById('edit-game-name').value=name;
+  document.getElementById('edit-game-idlabel').value=idlabel;
+  document.getElementById('edit-game-server').value=needs;
+  openModal('modal-edit-game');
+}}
+function openEditProd(id,label,dm,harga){{
+  document.getElementById('edit-prod-id').value=id;
+  document.getElementById('edit-prod-label').value=label;
+  document.getElementById('edit-prod-dm').value=dm;
+  document.getElementById('edit-prod-harga').value=harga;
+  openModal('modal-edit-prod');
+}}
+</script>"""
+    content = _service_info_widget("ml", "Topup Game (ML/FF/WDP)") + content
+    return render_page(content)
+
+
+@app.route("/ml/game/add", methods=["POST"])
+@login_required
+def ml_game_add():
+    code = request.form.get("code", "").strip().upper()
+    name = request.form.get("name", "").strip()
+    id_label = request.form.get("id_label", "Player ID").strip()
+    needs_server = 1 if request.form.get("needs_server") == "1" else 0
+    if not code or not name:
+        flash("Kode dan nama game wajib diisi.", "error")
+        return redirect(url_for("page_ml"))
+    conn = get_conn()
+    try:
+        conn.execute(
+            "INSERT INTO games (code, name, needs_server, id_label) VALUES (?,?,?,?)",
+            (code, name, needs_server, id_label)
+        )
+        conn.commit()
+        flash(f"Game {name} berhasil ditambahkan.", "success")
+    except Exception:
+        flash(f"Kode game {code} sudah ada.", "error")
+    conn.close()
+    return redirect(url_for("page_ml"))
+
+
+@app.route("/ml/game/edit", methods=["POST"])
+@login_required
+def ml_game_edit():
+    gid = safe_int(request.form.get("id"), min_val=1)
+    code = request.form.get("code", "").strip().upper()
+    name = request.form.get("name", "").strip()
+    id_label = request.form.get("id_label", "Player ID").strip()
+    needs_server = 1 if request.form.get("needs_server") == "1" else 0
+    if not gid or not code or not name:
+        flash("Input tidak valid.", "error")
+        return redirect(url_for("page_ml"))
+    conn = get_conn()
+    conn.execute(
+        "UPDATE games SET code=?, name=?, needs_server=?, id_label=? WHERE id=?",
+        (code, name, needs_server, id_label, gid)
+    )
+    conn.commit()
+    conn.close()
+    flash("Game berhasil diupdate.", "success")
+    return redirect(url_for("page_ml"))
+
+
+@app.route("/ml/game/toggle/<int:gid>", methods=["POST"])
+@login_required
+def ml_game_toggle(gid):
+    conn = get_conn()
+    conn.execute("UPDATE games SET active = 1 - active WHERE id=?", (gid,))
+    conn.commit()
+    conn.close()
+    flash("Status game diubah.", "success")
+    return redirect(url_for("page_ml"))
+
+
+@app.route("/ml/product/add", methods=["POST"])
+@login_required
+def ml_product_add():
+    game_code = request.form.get("game_code", "").strip().upper()
+    label = request.form.get("label", "").strip()
+    dm = safe_int(request.form.get("dm"), min_val=0)
+    harga = safe_int(request.form.get("harga"), min_val=1)
+    if not game_code or not label or dm is None or harga is None:
+        flash("Input tidak valid.", "error")
+        return redirect(url_for("page_ml", game=game_code))
+    conn = get_conn()
+    conn.execute(
+        "INSERT INTO game_products (game_code, label, dm, harga) VALUES (?,?,?,?)",
+        (game_code, label, dm, harga)
+    )
+    conn.commit()
+    conn.close()
+    flash(f"Produk {label} berhasil ditambahkan.", "success")
+    return redirect(url_for("page_ml", game=game_code))
+
+
+@app.route("/ml/product/edit", methods=["POST"])
+@login_required
+def ml_product_edit():
+    pid = safe_int(request.form.get("id"), min_val=1)
+    label = request.form.get("label", "").strip()
+    dm = safe_int(request.form.get("dm"), min_val=0)
+    harga = safe_int(request.form.get("harga"), min_val=1)
+    game_code = request.args.get("game", "")
+    if not pid or not label or dm is None or harga is None:
+        flash("Input tidak valid.", "error")
+        return redirect(url_for("page_ml", game=game_code))
+    conn = get_conn()
+    conn.execute(
+        "UPDATE game_products SET label=?, dm=?, harga=? WHERE id=?", (label, dm, harga, pid)
+    )
+    conn.commit()
+    conn.close()
+    flash("Produk berhasil diupdate.", "success")
+    return redirect(url_for("page_ml", game=game_code))
+
+
+@app.route("/ml/product/toggle/<int:pid>", methods=["POST"])
+@login_required
+def ml_product_toggle(pid):
+    game_code = request.args.get("game", "")
+    conn = get_conn()
+    conn.execute("UPDATE game_products SET active = 1 - active WHERE id=?", (pid,))
+    conn.commit()
+    conn.close()
+    flash("Status produk diubah.", "success")
+    return redirect(url_for("page_ml", game=game_code))
+
+
+@app.route("/ml/product/delete/<int:pid>", methods=["POST"])
+@login_required
+def ml_product_delete(pid):
+    game_code = request.args.get("game", "")
+    conn = get_conn()
+    conn.execute("DELETE FROM game_products WHERE id=?", (pid,))
+    conn.commit()
+    conn.close()
+    flash("Produk berhasil dihapus.", "success")
+    return redirect(url_for("page_ml", game=game_code))
+
+
+# Redirect /ff ke /ml untuk backwards compatibility
+@app.route("/ff")
+@login_required
+def page_ff():
+    return redirect(url_for("page_ml", game="FF"))
+
+
+# ── ROBUX ──────────────────────────────────────────────────────────────────────
+@app.route("/robux")
+@login_required
+def page_robux():
+    conn = get_conn()
+    products = conn.execute("SELECT * FROM robux_products ORDER BY category, id").fetchall()
+    categories = [r[0] for r in conn.execute(
+        "SELECT DISTINCT category FROM robux_products ORDER BY category").fetchall()]
+    conn.close()
+    cat_opts = "".join(f'<option value="{c}">' for c in categories)
+    rows = "".join(f"""<tr>
+      <td style="color:var(--muted)">{p['id']}</td>
+      <td><span class="badge badge-{p['category'].lower()}">{p['category']}</span></td>
+      <td>{p['name']}</td>
+      <td style="color:var(--accent)">{p['robux']:,} Robux</td>
+      <td><span style="color:{'var(--success)' if p['active'] else 'var(--danger)'};font-size:.8rem;">{'Aktif' if p['active'] else 'Nonaktif'}</span></td>
+      <td><div style="display:flex;gap:.5rem;flex-wrap:wrap;">
+        <button class="btn btn-ghost btn-sm" onclick="openEditRobux({p['id']},'{p['category']}','{p['name'].replace(chr(39), chr(92)+chr(39))}',{p['robux']})">Edit</button>
+        <form method="post" action="/robux/toggle/{p['id']}" style="display:inline;">
+          <button type="submit" class="btn btn-sm {'btn-danger' if p['active'] else 'btn-success'}">{'Nonaktifkan' if p['active'] else 'Aktifkan'}</button>
+        </form>
+        <form method="post" action="/robux/delete/{p['id']}" style="display:inline;" onsubmit="return confirm('Hapus item ini?')">
+          <button type="submit" class="btn btn-danger btn-sm">Hapus</button>
+        </form>
+      </div></td>
+    </tr>""" for p in products) or '<tr><td colspan="6" class="empty">Belum ada produk Robux</td></tr>'
+    content = f"""
+<div class="page-header">
+  <div class="page-title">Robux Store <small>{len(products)} item</small></div>
+  <button class="btn btn-primary" onclick="openModal('modal-add-robux')">+ Tambah Item</button>
+</div>
+<div class="card"><table>
+  <thead><tr><th>#</th><th>Kategori</th><th>Nama Item</th><th>Robux</th><th>Status</th><th>Aksi</th></tr></thead>
+  <tbody>{rows}</tbody>
+</table></div>
+<datalist id="cat-list">{cat_opts}</datalist>
+<div class="modal-overlay" id="modal-add-robux"><div class="modal">
+  <div class="modal-title">Tambah Item Robux</div>
+  <form method="post" action="/robux/add">
+    <div class="form-grid">
+      <div class="form-group"><label>Kategori</label>
+        <input type="text" name="category" placeholder="GAMEPASS / CRATE / BOOST / LIMITED" required list="cat-list"></div>
+      <div class="form-grid form-grid-2">
+        <div class="form-group"><label>Nama Item</label><input type="text" name="name" placeholder="contoh: VIP + LUCK" required></div>
+        <div class="form-group"><label>Harga Robux</label><input type="number" name="robux" placeholder="contoh: 445" min="1" required></div>
+      </div>
+    </div>
+    <div class="form-actions" style="margin-top:1.5rem;">
+      <button type="submit" class="btn btn-primary">Simpan</button>
+      <button type="button" class="btn btn-ghost" onclick="closeModal('modal-add-robux')">Batal</button>
+    </div>
+  </form>
+</div></div>
+<div class="modal-overlay" id="modal-edit-robux"><div class="modal">
+  <div class="modal-title">Edit Item Robux</div>
+  <form method="post" action="/robux/edit">
+    <input type="hidden" name="id" id="edit-robux-id">
+    <div class="form-grid">
+      <div class="form-group"><label>Kategori</label><input type="text" name="category" id="edit-robux-cat" list="cat-list" required></div>
+      <div class="form-grid form-grid-2">
+        <div class="form-group"><label>Nama Item</label><input type="text" name="name" id="edit-robux-name" required></div>
+        <div class="form-group"><label>Harga Robux</label><input type="number" name="robux" id="edit-robux-robux" min="1" required></div>
+      </div>
+    </div>
+    <div class="form-actions" style="margin-top:1.5rem;">
+      <button type="submit" class="btn btn-primary">Simpan</button>
+      <button type="button" class="btn btn-ghost" onclick="closeModal('modal-edit-robux')">Batal</button>
+    </div>
+  </form>
+</div></div>
+<script>
+function openEditRobux(id,cat,name,robux){{
+  document.getElementById('edit-robux-id').value=id;
+  document.getElementById('edit-robux-cat').value=cat;
+  document.getElementById('edit-robux-name').value=name;
+  document.getElementById('edit-robux-robux').value=robux;
+  openModal('modal-edit-robux');
+}}
+</script>"""
+    content = _service_info_widget("robux", "Robux Store") + content
+    return render_page(content)
+
+
+@app.route("/robux/add", methods=["POST"])
+@login_required
+def robux_add():
+    category = request.form.get("category", "").strip().upper()
+    name = request.form.get("name", "").strip()
+    robux = safe_int(request.form.get("robux"), min_val=1)
+    if not category or not name or robux is None:
+        flash("Input tidak valid. Semua field wajib diisi dengan benar.", "error")
+        return redirect(url_for("page_robux"))
+    conn = get_conn()
+    conn.execute("INSERT INTO robux_products (category, name, robux) VALUES (?,?,?)", (category, name, robux))
+    conn.commit(); conn.close()
+    flash(f"Item {name} berhasil ditambahkan.", "success")
+    return redirect(url_for("page_robux"))
+
+
+@app.route("/robux/edit", methods=["POST"])
+@login_required
+def robux_edit():
+    pid = safe_int(request.form.get("id"), min_val=1)
+    category = request.form.get("category", "").strip().upper()
+    name = request.form.get("name", "").strip()
+    robux = safe_int(request.form.get("robux"), min_val=1)
+    if pid is None or not category or not name or robux is None:
+        flash("Input tidak valid.", "error")
+        return redirect(url_for("page_robux"))
+    conn = get_conn()
+    conn.execute("UPDATE robux_products SET category=?, name=?, robux=? WHERE id=?", (category, name, robux, pid))
+    conn.commit(); conn.close()
+    flash("Item Robux berhasil diupdate.", "success")
+    return redirect(url_for("page_robux"))
+
+
+@app.route("/robux/toggle/<int:pid>", methods=["POST"])
+@login_required
+def robux_toggle(pid):
+    conn = get_conn()
+    row = conn.execute("SELECT active FROM robux_products WHERE id=?", (pid,)).fetchone()
+    if row:
+        conn.execute("UPDATE robux_products SET active=? WHERE id=?", (0 if row[0] else 1, pid))
+        conn.commit()
+    conn.close()
+    return redirect(url_for("page_robux"))
+
+
+@app.route("/robux/delete/<int:pid>", methods=["POST"])
+@login_required
+def robux_delete(pid):
+    conn = get_conn()
+    conn.execute("DELETE FROM robux_products WHERE id=?", (pid,))
+    conn.commit(); conn.close()
+    flash("Item Robux berhasil dihapus.", "success")
+    return redirect(url_for("page_robux"))
+
+
+@app.route("/robux/rate", methods=["POST"])
+@login_required
+def robux_rate():
+    rate = safe_int(request.form.get("rate"), min_val=1)
+    if rate is None:
+        flash("Rate tidak valid. Masukkan angka lebih dari 0.", "error")
+        return redirect(url_for("index"))
+    conn = get_conn()
+    conn.execute("INSERT OR REPLACE INTO robux_rate (id, rate) VALUES (1, ?)", (rate,))
+    conn.commit(); conn.close()
+    flash(f"Rate berhasil diupdate ke Rp {rate:,}/Robux.", "success")
+    return redirect(url_for("index"))
+
+
+# ── GP TOPUP ──────────────────────────────────────────────────────────────────
+
+@app.route("/gp")
+@login_required
+def page_gp():
+    from utils.db import get_conn as _gc
+    conn = _gc()
+    tickets = conn.execute("SELECT * FROM gp_tickets ORDER BY opened_at DESC LIMIT 50").fetchall()
+    conn.close()
+
+    import os
+    gp_rate = int(__import__("sqlite3").connect(
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "midman.db")
+    ).execute("SELECT value FROM bot_state WHERE key='gp_rate'").fetchone()[0] or 0)
+
+    rows = ""
+    _nm_gp = member_names.name_map([t["user_id"] for t in tickets])
+    for t in tickets:
+        paid = "✅ Lunas" if t["paid"] else "⏳ Belum bayar"
+        link = f'<a href="{t["gp_link"]}" target="_blank">Link</a>' if t["gp_link"] else "-"
+        rows += f"""<tr>
+            <td><code>{t['channel_id']}</code></td>
+            <td>{_member_cell(t['user_id'], _nm_gp)}</td>
+            <td>{t['robux']} Robux</td>
+            <td>{t['gp_price']} Robux</td>
+            <td>Rp {t['total']:,}</td>
+            <td>{paid}</td>
+            <td>{link}</td>
+            <td style='font-size:12px'>{(t['opened_at'] or '')[:16]}</td>
+        </tr>"""
+    if not rows:
+        rows = "<tr><td colspan='8' class='empty'>Belum ada tiket GP.</td></tr>"
+
+    content = f"""
+<div class="page-header">
+  <h2 class="page-title">🎮 GP Topup<small>Topup Robux via Gamepass</small></h2>
+</div>
+
+<div class="stats-grid">
+  <div class="stat-card gp">
+    <div class="stat-label">Rate GP</div>
+    <div class="stat-value" style="font-size:1.4rem">Rp {gp_rate:,}</div>
+    <div class="stat-sub">per Robux</div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <span class="card-title">Ubah Rate GP</span>
+  </div>
+  <div class="card-body">
+    <form method="post" action="/gp/rate" style="display:flex;gap:10px;align-items:flex-end">
+      <div class="form-group" style="flex:1">
+        <label>Rate Baru (Rp per Robux)</label>
+        <input type="number" name="rate" min="1" value="{gp_rate}" required>
+      </div>
+      <button type="submit" class="btn btn-primary">Simpan & Refresh Catalog</button>
+    </form>
+    <p class="note" style="margin-top:10px">Setelah simpan, catalog channel GP akan otomatis diperbarui. Gunakan <code>!gpcatalog</code> jika perlu refresh manual.</p>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header"><span class="card-title">Riwayat Tiket GP (50 terakhir)</span></div>
+  <div class="card-body" style="padding:0">
+    <table>
+      <thead><tr>
+        <th>Channel ID</th><th>User</th><th>Robux</th>
+        <th>Harga GP</th><th>Total</th><th>Status</th><th>Link GP</th><th>Waktu</th>
+      </tr></thead>
+      <tbody>{rows}</tbody>
+    </table>
+  </div>
+</div>
+"""
+    return render_page(content)
+
+
+@app.route("/gp/rate", methods=["POST"])
+@login_required
+def gp_rate_save():
+    import sqlite3 as _sq, os
+    rate = safe_int(request.form.get("rate"), min_val=1)
+    if not rate:
+        flash("Rate tidak valid.", "error")
+        return redirect(url_for("page_gp"))
+    db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "midman.db")
+    conn = _sq.connect(db_path)
+    conn.execute("INSERT OR REPLACE INTO bot_state (key, value) VALUES ('gp_rate', ?)", (str(rate),))
+    conn.commit()
+    conn.close()
+    flash(f"Rate GP diubah ke Rp {rate:,}/Robux. Refresh catalog via !gpcatalog di Discord.", "success")
+    return redirect(url_for("page_gp"))
+
+
+# ── STATISTIK ─────────────────────────────────────────────────────────────────
+@app.route("/reviews")
+def page_reviews():
+    if not session.get("logged_in"):
+        return redirect(url_for("login"))
+    from utils import reviews as rv
+    rv.init_reviews_db()
+    stats = rv.get_stats()
+    recent = rv.get_recent_reviews(limit=15)
+    top = rv.get_top_reviewers(limit=10)
+    _nm_rv = member_names.name_map(
+        [r["user_id"] for r in recent] + [t["user_id"] for t in top]
+    )
+
+    avg = stats["average"]
+    total = stats["count"]
+    dist = stats["distribution"]
+
+    def _stars(n):
+        n = max(0, min(5, int(round(n or 0))))
+        return "⭐" * n + "☆" * (5 - n)
+
+    summary = f"""
+    <div class="stat-grid" style="margin-bottom:1.25rem;">
+      <div class="stat-card robux">
+        <div class="card-title">Rata-rata Rating</div>
+        <div style="font-size:1.8rem;font-weight:700;color:var(--warning);">{avg:.2f}/5</div>
+        <div style="color:var(--warning);font-size:1.1rem;">{_stars(avg)}</div>
+      </div>
+      <div class="stat-card ml">
+        <div class="card-title">Total Ulasan</div>
+        <div style="font-size:1.8rem;font-weight:700;">{total}</div>
+      </div>
+    </div>
+    """
+
+    dist_rows = ""
+    for s_ in (5, 4, 3, 2, 1):
+        cnt = dist.get(s_, 0)
+        pct = round((cnt / total) * 100) if total else 0
+        dist_rows += f"""
+        <div style="display:flex;align-items:center;gap:.6rem;margin:.3rem 0;">
+          <span style="width:36px;color:var(--warning);">{s_}⭐</span>
+          <div style="flex:1;background:var(--surface3);border-radius:6px;height:14px;overflow:hidden;">
+            <div style="width:{pct}%;height:100%;background:var(--accent);"></div>
+          </div>
+          <span style="width:60px;text-align:right;color:var(--muted);">{cnt} ({pct}%)</span>
+        </div>"""
+
+    review_rows = ""
+    for r in recent:
+        txt = (r.get("review_text") or "").strip() or "<i>(tanpa ulasan teks)</i>"
+        lay = r.get("layanan") or "-"
+        when = (r.get("rated_at") or "")[:10]
+        review_rows += f"""
+        <tr>
+          <td style="color:var(--warning);white-space:nowrap;">{_stars(r['rating'])}</td>
+          <td>{_member_cell(r['user_id'], _nm_rv)}</td>
+          <td>{lay}</td>
+          <td>{txt}</td>
+          <td style="color:var(--muted);white-space:nowrap;">{when}</td>
+        </tr>"""
+    if not review_rows:
+        review_rows = '<tr><td colspan="5" style="text-align:center;color:var(--muted);">Belum ada ulasan.</td></tr>'
+
+    top_rows = ""
+    for i, t in enumerate(top):
+        medal = {0:"🥇",1:"🥈",2:"🥉"}.get(i, f"#{i+1}")
+        top_rows += f"""
+        <tr>
+          <td style="white-space:nowrap;">{medal}</td>
+          <td>{_member_cell(t['user_id'], _nm_rv)}</td>
+          <td>{t['count']}</td>
+          <td style="color:var(--warning);">{t['avg_rating']:.1f}⭐</td>
+        </tr>"""
+    if not top_rows:
+        top_rows = '<tr><td colspan="4" style="text-align:center;color:var(--muted);">Belum ada data.</td></tr>'
+
+    content = f"""
+    <div class="page-header">
+      <div class="page-title">Rating &amp; Ulasan <small>statistik & ulasan member</small></div>
+    </div>
+    {summary}
+    <div class="card">
+      <div class="card-header"><span class="card-title">Sebaran Bintang</span></div>
+      <div class="card-body">{dist_rows or '<span style=&quot;color:var(--muted);&quot;>Belum ada rating.</span>'}</div>
+    </div>
+    <div class="card">
+      <div class="card-header"><span class="card-title">Top Reviewer</span></div>
+      <div class="card-body" style="padding:0;">
+        <table class="data-table">
+          <thead><tr><th>Peringkat</th><th>User</th><th>Jumlah</th><th>Rata-rata</th></tr></thead>
+          <tbody>{top_rows}</tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><span class="card-title">Ulasan Terbaru</span></div>
+      <div class="card-body" style="padding:0;">
+        <table class="data-table">
+          <thead><tr><th>Rating</th><th>User</th><th>Layanan</th><th>Ulasan</th><th>Tanggal</th></tr></thead>
+          <tbody>{review_rows}</tbody>
+        </table>
+      </div>
+    </div>
+    """
+    return render_page(content)
+
+@app.route("/stats")
+def page_stats():
+    # Halaman "Statistik" lama sudah dipensiunkan. Seluruh isinya — termasuk
+    # "Jam Tersibuk" — kini digabung ke halaman Analitik (/analytics). Redirect
+    # permanen di sini supaya bookmark / tautan lama tetap berfungsi.
+    if not session.get("logged_in"):
+        return redirect(url_for("login"))
+    return redirect("/analytics", code=301)
+
+
+# ── LAINNYA (Cloud Phone & Nitro) ─────────────────────────────────────────────
+@app.route("/lainnya")
+def page_lainnya():
+    if not session.get("logged_in"):
+        return redirect(url_for("login"))
+    from utils.db import get_conn
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute("SELECT id, category, name, harga, active FROM lainnya_products ORDER BY category, id")
+    products = [dict(r) for r in c.fetchall()]
+    conn.close()
+
+    # Group by category
+    categories = {}
+    for p in products:
+        categories.setdefault(p["category"], []).append(p)
+
+    cat_html = ""
+    for cat, items in categories.items():
+        rows = ""
+        for p in items:
+            status = "Aktif" if p["active"] else "Nonaktif"
+            status_badge = f'<span class="badge badge-{"aktif" if p["active"] else "nonaktif"}">{status}</span>'
+            rows += f"""
+            <tr data-name="{p["name"].lower().replace('"', "&quot;")}">
+              <td>{p["id"]}</td>
+              <td>{p["name"]}</td>
+              <td>Rp {p["harga"]:,}</td>
+              <td>{status_badge}</td>
+              <td>
+                <div style="display:flex;gap:.4rem;">
+                  <a href="/lainnya/edit/{p["id"]}" class="btn-sm btn-primary">Edit</a>
+                  <a href="/lainnya/toggle/{p["id"]}" class="btn-sm {"btn-warn" if p["active"] else "btn-success"}">{"Nonaktifkan" if p["active"] else "Aktifkan"}</a>
+                  <a href="/lainnya/delete/{p["id"]}" class="btn-sm btn-danger" onclick="return confirm('Hapus item ini?')">Hapus</a>
+                </div>
+              </td>
+            </tr>"""
+        cat_html += f"""
+        <div class="card lainnya-cat" data-cat="{cat.lower().replace('"', "&quot;")}" style="margin-bottom:1rem;">
+          <div class="card-header"><span class="card-title">{cat}</span><span style="color:var(--muted2);font-size:.8rem;font-weight:600;">{len(items)} item</span></div>
+          <table>
+            <thead><tr><th>ID</th><th>Nama</th><th>Harga</th><th>Status</th><th>Aksi</th></tr></thead>
+            <tbody>{rows}</tbody>
+          </table>
+        </div>"""
+
+    content = f"""
+<div class="page-header">
+  <div class="page-title">Lainnya<small>Kelola produk Cloud Phone & Discord Nitro</small></div>
+</div>
+
+<!-- Tambah Produk -->
+<div class="card" style="margin-bottom:1.5rem;">
+  <div class="card-header"><span class="card-title">Tambah Produk</span></div>
+  <div class="card-body">
+    <form method="POST" action="/lainnya/add" style="display:grid;grid-template-columns:2fr 2fr 1fr 1fr auto;gap:.75rem;align-items:end;">
+      <div>
+        <label style="font-size:.76rem;color:var(--muted2);font-weight:600;display:block;margin-bottom:.35rem;">Kategori</label>
+        <input name="category" placeholder="Contoh: CLOUD PHONE" style="width:100%;padding:.55rem .8rem;background:var(--surface);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-size:.86rem;">
+      </div>
+      <div>
+        <label style="font-size:.76rem;color:var(--muted2);font-weight:600;display:block;margin-bottom:.35rem;">Nama Item</label>
+        <input name="name" placeholder="Contoh: REDFINGER VIP 7DAY" style="width:100%;padding:.55rem .8rem;background:var(--surface);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-size:.86rem;">
+      </div>
+      <div>
+        <label style="font-size:.76rem;color:var(--muted2);font-weight:600;display:block;margin-bottom:.35rem;">Harga (Rp)</label>
+        <input name="harga" type="number" placeholder="20500" style="width:100%;padding:.55rem .8rem;background:var(--surface);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-size:.86rem;">
+      </div>
+      <button type="submit" class="btn-primary" style="padding:.5rem 1rem;height:fit-content;margin-top:auto;">Tambah</button>
+    </form>
+  </div>
+</div>
+
+<!-- Cari -->
+<div style="margin-bottom:1rem;">
+  <input id="lainnyaSearch" type="text" placeholder="Cari kategori atau nama item..." oninput="filterLainnya()" autocomplete="off" style="width:100%;padding:.6rem .9rem;background:var(--surface);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-size:.9rem;">
+</div>
+
+<!-- Daftar Produk -->
+{cat_html if cat_html else '<div class="card"><div class="card-body empty">Belum ada produk</div></div>'}
+<div id="lainnyaNoResult" class="card" style="display:none;"><div class="card-body empty">Tidak ada hasil yang cocok</div></div>
+
+<script>
+function filterLainnya(){{
+  var q = (document.getElementById('lainnyaSearch').value || '').trim().toLowerCase();
+  var cards = document.querySelectorAll('.lainnya-cat');
+  var anyVisible = false;
+  cards.forEach(function(card){{
+    var cat = card.getAttribute('data-cat') || '';
+    var catMatch = q === '' || cat.indexOf(q) !== -1;
+    var rows = card.querySelectorAll('tr[data-name]');
+    var rowVisible = 0;
+    rows.forEach(function(tr){{
+      var name = tr.getAttribute('data-name') || '';
+      var show = catMatch || name.indexOf(q) !== -1;
+      tr.style.display = show ? '' : 'none';
+      if (show) rowVisible++;
+    }});
+    var cardShow = catMatch || rowVisible > 0;
+    card.style.display = cardShow ? '' : 'none';
+    if (cardShow) anyVisible = true;
+  }});
+  var nr = document.getElementById('lainnyaNoResult');
+  if (nr) nr.style.display = anyVisible ? 'none' : '';
+}}
+</script>
+"""
+    return render_page(content)
+
+
+@app.route("/lainnya/add", methods=["POST"])
+def lainnya_add():
+    if not session.get("logged_in"):
+        return redirect(url_for("login"))
+    category = request.form.get("category", "").strip().upper()
+    name = request.form.get("name", "").strip().upper()
+    harga = request.form.get("harga", "0").strip()
+    if not category or not name or not harga:
+        flash("Semua field wajib diisi!", "error")
+        return redirect(url_for("page_lainnya"))
+    try:
+        harga_int = int(harga)
+    except ValueError:
+        flash("Harga harus berupa angka!", "error")
+        return redirect(url_for("page_lainnya"))
+    from utils.db import get_conn
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute("INSERT INTO lainnya_products (category, name, harga, active) VALUES (?,?,?,1)",
+              (category, name, harga_int))
+    conn.commit()
+    conn.close()
+    flash(f"Produk {name} berhasil ditambahkan!", "success")
+    return redirect(url_for("page_lainnya"))
+
+
+@app.route("/lainnya/edit/<int:pid>", methods=["GET", "POST"])
+def lainnya_edit(pid):
+    if not session.get("logged_in"):
+        return redirect(url_for("login"))
+    from utils.db import get_conn
+    conn = get_conn()
+    c = conn.cursor()
+    if request.method == "POST":
+        category = request.form.get("category", "").strip().upper()
+        name = request.form.get("name", "").strip().upper()
+        harga = request.form.get("harga", "0").strip()
+        try:
+            harga_int = int(harga)
+        except ValueError:
+            harga_int = 0
+        c.execute("UPDATE lainnya_products SET category=?, name=?, harga=? WHERE id=?",
+                  (category, name, harga_int, pid))
+        conn.commit()
+        conn.close()
+        flash("Produk berhasil diupdate!", "success")
+        return redirect(url_for("page_lainnya"))
+    c.execute("SELECT * FROM lainnya_products WHERE id=?", (pid,))
+    p = dict(c.fetchone())
+    conn.close()
+    content = f"""
+<div class="page-header">
+  <div class="page-title">Edit Produk<small>{p["name"]}</small></div>
+</div>
+<div class="card" style="max-width:500px;">
+  <div class="card-body">
+    <form method="POST" style="display:flex;flex-direction:column;gap:1rem;">
+      <div>
+        <label style="font-size:.76rem;color:var(--muted2);font-weight:600;display:block;margin-bottom:.35rem;">Kategori</label>
+        <input name="category" value="{p["category"]}" style="width:100%;padding:.55rem .8rem;background:var(--surface);border:1px solid var(--border2);border-radius:8px;color:var(--text);">
+      </div>
+      <div>
+        <label style="font-size:.76rem;color:var(--muted2);font-weight:600;display:block;margin-bottom:.35rem;">Nama Item</label>
+        <input name="name" value="{p["name"]}" style="width:100%;padding:.55rem .8rem;background:var(--surface);border:1px solid var(--border2);border-radius:8px;color:var(--text);">
+      </div>
+      <div>
+        <label style="font-size:.76rem;color:var(--muted2);font-weight:600;display:block;margin-bottom:.35rem;">Harga (Rp)</label>
+        <input name="harga" type="number" value="{p["harga"]}" style="width:100%;padding:.55rem .8rem;background:var(--surface);border:1px solid var(--border2);border-radius:8px;color:var(--text);">
+      </div>
+      <div style="display:flex;gap:.75rem;">
+        <button type="submit" class="btn-primary">Simpan</button>
+        <a href="/lainnya" class="btn btn-ghost btn-sm" style="text-decoration:none;">Batal</a>
+      </div>
+    </form>
+  </div>
+</div>"""
+    return render_page(content)
+
+
+@app.route("/lainnya/toggle/<int:pid>")
+def lainnya_toggle(pid):
+    if not session.get("logged_in"):
+        return redirect(url_for("login"))
+    from utils.db import get_conn
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute("UPDATE lainnya_products SET active = 1 - active WHERE id=?", (pid,))
+    conn.commit()
+    conn.close()
+    return redirect(url_for("page_lainnya"))
+
+
+@app.route("/lainnya/delete/<int:pid>")
+def lainnya_delete(pid):
+    if not session.get("logged_in"):
+        return redirect(url_for("login"))
+    from utils.db import get_conn
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute("DELETE FROM lainnya_products WHERE id=?", (pid,))
+    conn.commit()
+    conn.close()
+    flash("Produk berhasil dihapus!", "success")
+    return redirect(url_for("page_lainnya"))
+
+
+# ── PENCARIAN NIHIL (demand insight) ────────────────────────────────────────────
+@app.route("/search-misses")
+def page_search_misses():
+    if not session.get("logged_in"):
+        return redirect(url_for("login"))
+    from utils import search_log
+    rows = search_log.top_misses(300)
+    total, uniq = search_log.stats()
+
+    if rows:
+        trs = ""
+        for r in rows:
+            q = html.escape(r["last_query"] or r["query_key"])
+            key = html.escape(r["query_key"])
+            when = (r["last_at"] or "")[:16].replace("T", " ")
+            if r["had_suggestion"]:
+                sug = '<span class="badge badge-aktif">mirip ada</span>'
+            else:
+                sug = '<span class="badge badge-nonaktif">tak ada</span>'
+            trs += f"""
+            <tr>
+              <td><strong>{q}</strong></td>
+              <td style="text-align:center;font-weight:700;">{r["count"]}x</td>
+              <td>{sug}</td>
+              <td style="color:var(--muted);font-size:.82rem;white-space:nowrap;">{when}</td>
+              <td style="text-align:right;">
+                <form method="POST" action="/search-misses/delete" style="margin:0;display:inline;">
+                  <input type="hidden" name="query_key" value="{key}">
+                  <button type="submit" class="btn-sm btn-danger" onclick="return confirm('Hapus entri ini?')">Hapus</button>
+                </form>
+              </td>
+            </tr>"""
+        listing = f"""
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Daftar Pencarian Nihil</span>
+            <form method="POST" action="/search-misses/clear" style="margin:0;">
+              <button type="submit" class="btn-sm btn-warn" onclick="return confirm('Kosongkan SEMUA catatan pencarian nihil?')">Bersihkan Semua</button>
+            </form>
+          </div>
+          <table>
+            <thead><tr><th>Yang Dicari</th><th style="text-align:center;">Frekuensi</th><th>Produk Mirip?</th><th>Terakhir</th><th></th></tr></thead>
+            <tbody>{trs}</tbody>
+          </table>
+        </div>"""
+    else:
+        listing = ('<div class="card"><div class="card-body empty">'
+                   'Belum ada pencarian nihil yang tercatat. 🎉</div></div>')
+
+    content = f"""
+<div class="page-header">
+  <div class="page-title">Pencarian Nihil<small>Yang dicari member di channel pencarian tapi belum ada di katalog</small></div>
+</div>
+
+<div class="card" style="margin-bottom:1.25rem;">
+  <div class="card-body" style="display:flex;gap:2.5rem;flex-wrap:wrap;">
+    <div>
+      <div style="font-size:.76rem;color:var(--muted2);font-weight:600;">Total Pencarian</div>
+      <div style="font-size:1.4rem;font-weight:700;">{total:,}x</div>
+    </div>
+    <div>
+      <div style="font-size:.76rem;color:var(--muted2);font-weight:600;">Kata Kunci Unik</div>
+      <div style="font-size:1.4rem;font-weight:700;">{uniq:,}</div>
+    </div>
+  </div>
+</div>
+
+{listing}
+
+<div class="card" style="margin-top:1.25rem;">
+  <div class="card-body" style="color:var(--muted);font-size:.84rem;line-height:1.6;">
+    💡 Daftar ini terisi otomatis saat member mengetik di channel pencarian dan bot tidak menemukan kecocokan. Kolom <strong>Produk Mirip?</strong>: <em>mirip ada</em> = ada produk yang menyerupai (member mungkin salah ketik / beda istilah); <em>tak ada</em> = belum punya sama sekali, peluang untuk menambah produk baru. Obrolan biasa sudah disaring agar tidak ikut tercatat.
+  </div>
+</div>
+"""
+    return render_page(content)
+
+
+@app.route("/search-misses/delete", methods=["POST"])
+def search_misses_delete():
+    if not session.get("logged_in"):
+        return redirect(url_for("login"))
+    from utils import search_log
+    key = request.form.get("query_key", "")
+    if search_log.delete_miss(key):
+        flash("Entri pencarian dihapus.", "success")
+    return redirect(url_for("page_search_misses"))
+
+
+@app.route("/search-misses/clear", methods=["POST"])
+def search_misses_clear():
+    if not session.get("logged_in"):
+        return redirect(url_for("login"))
+    from utils import search_log
+    n = search_log.clear_all()
+    flash(f"{n} catatan pencarian dibersihkan.", "success")
+    return redirect(url_for("page_search_misses"))
+
+
+# ── QR SLOTS ───────────────────────────────────────────────────────────────────
+@app.route("/qr")
+@login_required
+def page_qr():
+    conn = get_conn()
+    conn.execute("""CREATE TABLE IF NOT EXISTS qr_slots (
+        slot INTEGER PRIMARY KEY, label TEXT NOT NULL DEFAULT '',
+        detail TEXT NOT NULL DEFAULT '',
+        url TEXT NOT NULL DEFAULT '', active INTEGER NOT NULL DEFAULT 1
+    )""")
+    cols = [r[1] for r in conn.execute("PRAGMA table_info(qr_slots)").fetchall()]
+    if "detail" not in cols:
+        conn.execute("ALTER TABLE qr_slots ADD COLUMN detail TEXT NOT NULL DEFAULT ''")
+    for i in range(1, 11):
+        conn.execute(
+            "INSERT OR IGNORE INTO qr_slots (slot, label, detail, url) VALUES (?,?,?,?)",
+            (i, f"QRIS {i}", "", "")
+        )
+    conn.commit()
+    slots = conn.execute("SELECT * FROM qr_slots ORDER BY slot").fetchall()
+    conn.close()
+
+    def _js(s):
+        s = s or ""
+        return s.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n").replace("\r", "")
+
+    def _h(s):
+        return html.escape(s or "")
+
+    rows = "".join(f"""<tr>
+      <td style="color:var(--muted);font-weight:600">!qr{s['slot']}</td>
+      <td>{_h(s['label'])}</td>
+      <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);font-size:.85rem">{_h(s['detail'])}</td>
+      <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);font-size:.85rem">{_h(s['url']) if s['url'] else '<span style="color:#555">Belum diset</span>'}</td>
+      <td>{'<img src="'+_h(s['url'])+'" style="height:48px;border-radius:6px">' if s['url'] else ''}</td>
+      <td><span style="color:{'var(--success)' if s['active'] else 'var(--danger)'};font-size:.85rem">{'Aktif' if s['active'] else 'Nonaktif'}</span></td>
+      <td><div style="display:flex;gap:.4rem">
+        <button class="btn btn-ghost btn-sm" onclick="openEditQR({s['slot']},'{_js(s['label'])}','{_js(s['detail'])}','{_js(s['url'])}')">Edit</button>
+        <form method="post" action="/qr/toggle/{s['slot']}" style="display:inline">
+          <button class="btn btn-sm {'btn-danger' if s['active'] else 'btn-success'}">{'Nonaktifkan' if s['active'] else 'Aktifkan'}</button>
+        </form>
+      </div></td>
+    </tr>""" for s in slots)
+
+    content = f"""
+<div class="page-header">
+  <div class="page-title">QRIS Slots <small>!qr1 — !qr{len(slots)}</small></div>
+</div>
+<div class="card"><table>
+  <thead><tr><th>Command</th><th>Label</th><th>Detail</th><th>URL Gambar</th><th>Preview</th><th>Status</th><th>Aksi</th></tr></thead>
+  <tbody>{rows}</tbody>
+</table></div>
+<div class="modal-overlay" id="modal-edit-qr"><div class="modal">
+  <div class="modal-title">Edit Slot QRIS</div>
+  <form method="post" action="/qr/edit">
+    <input type="hidden" name="slot" id="edit-qr-slot">
+    <div class="form-group"><label>Label</label>
+      <input type="text" name="label" id="edit-qr-label" placeholder="contoh: QRIS Admin 1" required>
+    </div>
+    <div class="form-group" style="margin-top:1rem"><label>Detail</label>
+      <input type="text" name="detail" id="edit-qr-detail" placeholder="contoh: QRIS GoPay / Transfer BCA">
+    </div>
+    <div class="form-group" style="margin-top:1rem"><label>URL Gambar QR</label>
+      <input type="text" name="url" id="edit-qr-url" placeholder="https://i.imgur.com/xxx.png">
+      <small style="color:var(--muted)">Upload gambar ke Imgur/ImgBB lalu paste URL-nya di sini</small>
+    </div>
+    <div class="form-actions" style="margin-top:1.5rem">
+      <button type="submit" class="btn btn-primary">Simpan</button>
+      <button type="button" class="btn btn-ghost" onclick="closeModal('modal-edit-qr')">Batal</button>
+    </div>
+  </form>
+</div></div>
+<script>
+function openEditQR(slot, label, detail, url) {{
+  document.getElementById('edit-qr-slot').value = slot;
+  document.getElementById('edit-qr-label').value = label;
+  document.getElementById('edit-qr-detail').value = detail || '';
+  document.getElementById('edit-qr-url').value = url;
+  openModal('modal-edit-qr');
+}}
+</script>"""
+    return render_page(content)
+
+
+@app.route("/qr/edit", methods=["POST"])
+@login_required
+def qr_edit():
+    slot = safe_int(request.form.get("slot"), min_val=1)
+    label = request.form.get("label", "").strip()
+    detail = request.form.get("detail", "").strip()
+    url = request.form.get("url", "").strip()
+    if not slot or not label:
+        flash("Input tidak valid.", "error")
+        return redirect(url_for("page_qr"))
+    conn = get_conn()
+    conn.execute("UPDATE qr_slots SET label=?, detail=?, url=? WHERE slot=?", (label, detail, url, slot))
+    conn.commit()
+    conn.close()
+    flash(f"Slot !qr{slot} berhasil diupdate.", "success")
+    return redirect(url_for("page_qr"))
+
+
+@app.route("/qr/toggle/<int:slot>", methods=["POST"])
+@login_required
+def qr_toggle(slot):
+    conn = get_conn()
+    conn.execute("UPDATE qr_slots SET active = 1 - active WHERE slot=?", (slot,))
+    conn.commit()
+    conn.close()
+    flash(f"Status slot !qr{slot} diubah.", "success")
+    return redirect(url_for("page_qr"))
+
+
+
+
+# ── SERVICE INFO (Deskripsi, S&K, Cara Bayar per Layanan) ─────────────────────
+
+def _get_service_info_admin(service_key):
+    conn = get_conn()
+    conn.execute("""CREATE TABLE IF NOT EXISTS service_info (
+        service_key TEXT PRIMARY KEY,
+        description TEXT DEFAULT '',
+        terms TEXT DEFAULT '',
+        payment_info TEXT DEFAULT ''
+    )""")
+    conn.commit()
+    row = conn.execute(
+        "SELECT description, terms, payment_info FROM service_info WHERE service_key=?",
+        (service_key,)
+    ).fetchone()
+    conn.close()
+    if row:
+        return {"description": row[0] or "", "terms": row[1] or "", "payment_info": row[2] or ""}
+    return {"description": "", "terms": "", "payment_info": ""}
+
+
+def _service_info_widget(service_key, label):
+    """Render HTML widget form info layanan untuk disematkan di halaman admin."""
+    info = _get_service_info_admin(service_key)
+    info["description"].replace('"', '&quot;')
+    info["terms"].replace('"', '&quot;')
+    info["payment_info"].replace('"', '&quot;')
+    return f"""
+<div class="card" style="margin-bottom:24px;">
+  <div class="card-header" style="display:flex;align-items:center;gap:10px">
+    <span style="font-size:18px"></span>
+    <span style="font-weight:600">Info Layanan — {label}</span>
+    <span style="font-size:12px;color:var(--muted);margin-left:4px">Ditampilkan ke member sebelum buka tiket</span>
+  </div>
+  <div class="card-body">
+    <form method="POST" action="/service-info/save">
+      <input type="hidden" name="service_key" value="{service_key}">
+      <div style="margin-bottom:14px">
+        <label style="display:block;margin-bottom:6px;font-weight:500;color:var(--muted);font-size:13px">DESKRIPSI PRODUK</label>
+        <textarea name="description" rows="3" style="width:100%;background:var(--input-bg);border:1px solid var(--border2);border-radius:8px;color:var(--text);padding:10px;font-size:14px;resize:vertical" placeholder="Jelaskan layanan ini secara singkat...">{info['description']}</textarea>
+      </div>
+      <div style="margin-bottom:14px">
+        <label style="display:block;margin-bottom:6px;font-weight:500;color:var(--muted);font-size:13px">📜 SYARAT & KETENTUAN</label>
+        <textarea name="terms" rows="4" style="width:100%;background:var(--input-bg);border:1px solid var(--border2);border-radius:8px;color:var(--text);padding:10px;font-size:14px;resize:vertical" placeholder="Tuliskan syarat & ketentuan layanan...">{info['terms']}</textarea>
+      </div>
+      <div style="margin-bottom:14px">
+        <label style="display:block;margin-bottom:6px;font-weight:500;color:var(--muted);font-size:13px">💳 CARA PEMBAYARAN</label>
+        <textarea name="payment_info" rows="3" style="width:100%;background:var(--input-bg);border:1px solid var(--border2);border-radius:8px;color:var(--text);padding:10px;font-size:14px;resize:vertical" placeholder="Jelaskan cara pembayaran yang tersedia...">{info['payment_info']}</textarea>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center">
+        <button type="submit" class="btn btn-primary" style="min-width:120px">Simpan</button>
+        <span style="font-size:12px;color:var(--muted)">Kosongkan semua field untuk menonaktifkan info embed.</span>
+      </div>
+    </form>
+  </div>
+</div>"""
+
+
+@app.route("/service-info/save", methods=["POST"])
+@login_required
+def service_info_save():
+    service_key = request.form.get("service_key", "").strip()
+    description = request.form.get("description", "").strip()
+    terms = request.form.get("terms", "").strip()
+    payment_info = request.form.get("payment_info", "").strip()
+
+    try:
+        from utils.service_info import SERVICE_KEYS
+        valid_keys = list(SERVICE_KEYS.keys())
+    except Exception:
+        valid_keys = ["midman_trade", "midman_jb", "robux", "ml", "lainnya", "scaset", "gp"]
+    if service_key not in valid_keys:
+        flash("Service key tidak valid.", "error")
+        return redirect(url_for("index"))
+
+    conn = get_conn()
+    conn.execute("""CREATE TABLE IF NOT EXISTS service_info (
+        service_key TEXT PRIMARY KEY,
+        description TEXT DEFAULT '',
+        terms TEXT DEFAULT '',
+        payment_info TEXT DEFAULT ''
+    )""")
+    conn.execute(
+        "INSERT OR REPLACE INTO service_info (service_key, description, terms, payment_info) VALUES (?,?,?,?)",
+        (service_key, description, terms, payment_info)
+    )
+    conn.commit()
+    conn.close()
+
+    # Redirect ke halaman asal berdasarkan service_key
+    redirect_map = {
+        "midman_trade": "page_service_info",
+        "midman_jb": "page_service_info",
+        "robux": "page_robux",
+        "ml": "page_ml",
+        "lainnya": "page_lainnya",
+        "scaset": "page_service_info",
+        "gp": "page_service_info",
+        "vilog": "page_service_info",
+    }
+    flash("Info layanan berhasil disimpan.", "success")
+    target = redirect_map.get(service_key, "page_service_info")
+    return redirect(url_for(target))
+
+
+@app.route("/service-info")
+@login_required
+def page_service_info():
+    """Halaman khusus untuk kelola info layanan yang tidak punya halaman admin tersendiri."""
+    try:
+        from utils.service_info import SERVICE_KEYS
+        widgets = "\n".join(
+            _service_info_widget(k, v) for k, v in SERVICE_KEYS.items()
+        )
+    except Exception:
+        widgets = (
+            _service_info_widget("midman_trade", "Midman Trade")
+            + _service_info_widget("midman_jb", "Midman Jual Beli")
+            + _service_info_widget("scaset", "SC TB / Aset Game")
+        )
+    content = f"""
+<div class="page-header"><h2>Info Layanan</h2><p class="text-muted">Kelola informasi yang ditampilkan ke member sebelum membuka tiket.</p></div>
+{widgets}
+"""
+    return render_page(content)
+
+
+def _ap_short(text, n=60):
+    """Potong teks dengan aman (escape HTML) dan beri elipsis hanya bila perlu."""
+    text = str(text if text is not None else "")
+    t = text[:n] + ("\u2026" if len(text) > n else "")
+    return html.escape(t)
+
+
+def _ap_rel_time(sec):
+    past = sec >= 0
+    sec = abs(sec)
+    if sec < 60:
+        val, unit = int(sec), "dtk"
+    elif sec < 3600:
+        val, unit = int(sec // 60), "mnt"
+    elif sec < 86400:
+        val, unit = int(sec // 3600), "jam"
+    else:
+        val, unit = int(sec // 86400), "hr"
+    return f"{val} {unit} lalu" if past else f"dalam {val} {unit}"
+
+
+def _ap_fmt_dt(iso, with_rel=True):
+    """Format timestamp ISO jadi enak dibaca + waktu relatif."""
+    from datetime import datetime as _dt
+    if not iso:
+        return "<span class='text-muted'>-</span>"
+    try:
+        d = _dt.fromisoformat(iso)
+    except (ValueError, TypeError):
+        return html.escape(str(iso))
+    s = html.escape(d.strftime("%d %b %Y, %H:%M"))
+    if not with_rel:
+        return s
+    rel = _ap_rel_time((_dt.now() - d).total_seconds())
+    return f"{s} <span class='text-muted' style='font-size:.72rem;'>({rel})</span>"
+
+
+def _ap_next_due(task):
+    """Hitung kapan post berikutnya berdasarkan last_post/created_at + interval."""
+    from datetime import datetime as _dt, timedelta as _td
+    if not task.get("is_active"):
+        return "<span class='text-muted'>nonaktif</span>"
+    if task.get("force_post"):
+        return "<span style='color:var(--accent);font-weight:600;'>segera</span>"
+    ref_raw = task.get("last_post") or task.get("created_at")
+    try:
+        ref = _dt.fromisoformat(ref_raw) if ref_raw else None
+    except (ValueError, TypeError):
+        ref = None
+    if ref is None:
+        return "<span style='color:var(--accent);font-weight:600;'>segera</span>"
+    nxt = ref + _td(minutes=max(1, int(task.get("interval_minutes", 1))))
+    if nxt <= _dt.now():
+        return "<span style='color:var(--accent);font-weight:600;'>segera</span>"
+    return _ap_fmt_dt(nxt.isoformat())
+
+
+@app.route("/autopost")
+@login_required
+def page_autopost():
+    from utils.autoposter_settings import get_autopost_tasks, get_autopost_history
+    tasks = get_autopost_tasks()
+    history = get_autopost_history(limit=30)
+    
+    tasks_html = ""
+    for t in tasks:
+        status_color = "var(--success)" if t["is_active"] else "var(--danger)"
+        status_text = "Aktif" if t["is_active"] else "Mati"
+        toggle_label = "Matikan" if t["is_active"] else "Aktifkan"
+        tasks_html += f"""
+        <tr>
+            <td><strong>#{t['id']}</strong></td>
+            <td><code>{_ap_short(t['channel_id'], 40)}</code></td>
+            <td>{html.escape(str(t['interval_minutes']))}m</td>
+            <td title="{html.escape(str(t['message'] or ''))}">{_ap_short(t['message'], 60)}</td>
+            <td>{_ap_fmt_dt(t.get('last_post'))}</td>
+            <td>{_ap_next_due(t)}</td>
+            <td><span style="color:{status_color};font-weight:600;">{status_text}</span></td>
+            <td style="white-space:nowrap;">
+                <form method="POST" action="/autopost/post-now/{t['id']}" style="display:inline;">
+                    <button type="submit" class="btn btn-sm btn-primary" title="Post sekarang (max ~1 menit)">Post</button>
+                </form>
+                <a href="/autopost/edit/{t['id']}" class="btn btn-sm">Edit</a>
+                <form method="POST" action="/autopost/toggle/{t['id']}" style="display:inline;">
+                    <button type="submit" class="btn btn-sm">{toggle_label}</button>
+                </form>
+                <form method="POST" action="/autopost/delete/{t['id']}" style="display:inline;">
+                    <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Hapus task ini?')">Hapus</button>
+                </form>
+            </td>
+        </tr>"""
+    
+    if not tasks_html:
+        tasks_html = "<tr><td colspan=8 class='empty'>Belum ada autopost task.</td></tr>"
+    
+    history_html = ""
+    for h in history:
+        ok = h["status"] == "success"
+        badge_color = "var(--success)" if ok else "var(--danger)"
+        badge_bg = "rgba(95,168,134,.14)" if ok else "rgba(220,90,90,.14)"
+        badge_text = "Sukses" if ok else "Gagal"
+        history_html += f"""
+        <tr>
+            <td>{h['id']}</td>
+            <td><code>#{h['task_id']}</code></td>
+            <td title="{html.escape(str(h['message'] or ''))}">{_ap_short(h['message'], 45)}</td>
+            <td><span style="color:{badge_color};background:{badge_bg};font-weight:600;padding:.15rem .5rem;border-radius:999px;font-size:.72rem;">{badge_text}</span></td>
+            <td>{_ap_short(h.get('detail'), 70) if h.get('detail') else '<span class="text-muted">-</span>'}</td>
+            <td>{_ap_fmt_dt(h['created_at'])}</td>
+        </tr>"""
+    
+    if not history_html:
+        history_html = "<tr><td colspan=6 class='empty'>Belum ada history.</td></tr>"
+    
+    content = f"""
+    <div class="page-header">
+        <h2>AutoPost</h2>
+        <p class="text-muted">Kelola auto-post pesan ke channel Discord. Token diambil dari environment <code>AUTOPOSTER_TOKEN</code> saat runtime.</p>
+    </div>
+    
+    <div class="card">
+        <div class="card-header">Tambah AutoPost</div>
+        <div class="card-body">
+            <form method="POST" action="/autopost/add">
+                <div class="form-grid-2">
+                    <div>
+                        <label>Channel ID (pisahkan dengan koma untuk multiple)</label>
+                        <input type="text" name="channel_id" placeholder="123456,789012,345678" required>
+                    </div>
+                    <div>
+                        <label>Interval (menit)</label>
+                        <input type="number" name="interval_minutes" value="60" min="1" required>
+                    </div>
+                </div>
+                <div>
+                    <label>Pesan</label>
+                    <textarea name="message" rows="3" placeholder="Pesan yang akan di-post..." required></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary">Tambah</button>
+            </form>
+        </div>
+    </div>
+    
+    <div class="card">
+        <div class="card-header">Daftar AutoPost</div>
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr><th>ID</th><th>Channel ID</th><th>Interval</th><th>Pesan</th><th>Terakhir Post</th><th>Berikutnya</th><th>Status</th><th>Aksi</th></tr>
+                </thead>
+                <tbody>{tasks_html}</tbody>
+            </table>
+        </div>
+    </div>
+    
+    <div class="card">
+        <div class="card-header">History (30 terakhir)</div>
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr><th>ID</th><th>Task</th><th>Pesan</th><th>Status</th><th>Detail</th><th>Waktu</th></tr>
+                </thead>
+                <tbody>{history_html}</tbody>
+            </table>
+        </div>
+    </div>
+    """
+    return render_page(content)
+
+
+@app.route("/autopost/add", methods=["POST"])
+@login_required
+def autopost_add():
+    from utils.autoposter_settings import add_autopost_task
+    channel_id = request.form.get("channel_id", "").strip()
+    interval_minutes = safe_int(request.form.get("interval_minutes", 60), min_val=1) or 60
+    message = request.form.get("message", "").strip()
+    # Token TIDAK disimpan di DB (resolusi via env AUTOPOSTER_TOKEN saat runtime).
+    add_autopost_task(channel_id, message, interval_minutes, "")
+    flash("AutoPost berhasil ditambahkan.", "success")
+    return redirect(url_for("page_autopost"))
+
+
+@app.route("/autopost/post-now/<int:tid>", methods=["POST"])
+@login_required
+def autopost_post_now(tid):
+    from utils.autoposter_settings import get_autopost_task, request_force_post
+    task = get_autopost_task(tid)
+    if not task:
+        flash("Task tidak ditemukan.", "error")
+        return redirect(url_for("page_autopost"))
+    if not task.get("is_active"):
+        flash("Task sedang nonaktif. Aktifkan dulu sebelum post.", "error")
+        return redirect(url_for("page_autopost"))
+    request_force_post(tid)
+    flash(f"Task #{tid} dijadwalkan post sekarang (maks ~1 menit).", "success")
+    return redirect(url_for("page_autopost"))
+
+
+@app.route("/autopost/toggle/<int:tid>", methods=["POST"])
+@login_required
+def autopost_toggle(tid):
+    from utils.autoposter_settings import toggle_autopost_task
+    toggle_autopost_task(tid)
+    return redirect(url_for("page_autopost"))
+
+
+@app.route("/autopost/delete/<int:tid>", methods=["POST"])
+@login_required
+def autopost_delete(tid):
+    from utils.autoposter_settings import delete_autopost_task
+    delete_autopost_task(tid)
+    flash("AutoPost dihapus.", "success")
+    return redirect(url_for("page_autopost"))
+
+
+@app.route("/autopost/edit/<int:tid>", methods=["GET"])
+@login_required
+def autopost_edit(tid):
+    from utils.autoposter_settings import get_autopost_task
+    task = get_autopost_task(tid)
+    if not task:
+        flash("Task tidak ditemukan.", "error")
+        return redirect(url_for("page_autopost"))
+    
+    status_color = "var(--success)" if task["is_active"] else "var(--danger)"
+    status_text = "Aktif" if task["is_active"] else "Nonaktif"
+    content = f"""
+    <div class="page-header">
+        <h2>Edit AutoPost #{tid}</h2>
+        <p class="text-muted">Status: <span style="color:{status_color};font-weight:600;">{status_text}</span>
+        &middot; Terakhir post: {_ap_fmt_dt(task.get('last_post'))}</p>
+    </div>
+    
+    <div class="card">
+        <div class="card-body">
+            <form method="POST" action="/autopost/edit/{tid}">
+                <div class="form-grid-2">
+                    <div>
+                        <label>Channel ID (pisahkan dengan koma untuk multiple)</label>
+                        <input type="text" name="channel_id" value="{html.escape(str(task['channel_id'] or ''))}" required>
+                    </div>
+                    <div>
+                        <label>Interval (menit)</label>
+                        <input type="number" name="interval_minutes" value="{html.escape(str(task['interval_minutes']))}" min="1" required>
+                    </div>
+                </div>
+                <div>
+                    <label>Pesan</label>
+                    <textarea name="message" rows="5" required>{html.escape(str(task['message'] or ''))}</textarea>
+                </div>
+                <div style="margin-top:1rem;display:flex;gap:0.5rem;">
+                    <button type="submit" class="btn btn-primary">Simpan</button>
+                    <a href="/autopost" class="btn">Batal</a>
+                </div>
+            </form>
+        </div>
+    </div>
+    """
+    return render_page(content)
+
+
+@app.route("/autopost/edit/<int:tid>", methods=["POST"])
+@login_required
+def autopost_edit_save(tid):
+    from utils.autoposter_settings import update_autopost_task
+    channel_id = request.form.get("channel_id", "").strip()
+    interval_minutes = safe_int(request.form.get("interval_minutes", 60), min_val=1) or 60
+    message = request.form.get("message", "").strip()
+    update_autopost_task(tid, channel_id=channel_id, message=message, interval_minutes=interval_minutes)
+    flash("AutoPost berhasil diupdate.", "success")
+    return redirect(url_for("page_autopost"))
+
+
+if __name__ == "__main__":
+    port = int(os.environ.get("ADMIN_PORT", 5000))
+    print(f"[ADMIN] {ADMIN_BRAND} Panel berjalan di http://localhost:{port}")
+    print(f"[ADMIN] Password: {ADMIN_PASSWORD}")
+    app.run(host="0.0.0.0", port=port, debug=False)
