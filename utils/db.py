@@ -130,6 +130,15 @@ def init_db():
             value TEXT
         )
     ''')
+    # Setting yang diisi lewat Setup Wizard (/setup). Ditimpa ke os.environ oleh
+    # utils.config saat startup. Lihat utils/settings_store.py.
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS settings (
+            key        TEXT PRIMARY KEY,
+            value      TEXT,
+            updated_at TEXT
+        )
+    ''')
     c.execute('''
         CREATE TABLE IF NOT EXISTS ml_tickets (
             channel_id      INTEGER PRIMARY KEY,

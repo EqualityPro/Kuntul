@@ -8,12 +8,46 @@ dari environment variables. Helper di bawah membuat bot:
   - tetap berjalan apa adanya untuk server lama (default = nilai server semula).
 """
 import os
-from dotenv import load_dotenv
+try:
+    from dotenv import load_dotenv
+except ImportError:  # python-dotenv opsional (mis. lingkungan test/CI); abaikan .env
+    def load_dotenv(*args, **kwargs):
+        return False
 
 load_dotenv(override=True)
 
 # Dikumpulkan saat import; dilaporkan oleh validate_required() di startup.
 MISSING_REQUIRED = []
+
+
+def _load_wizard_settings():
+    """Muat setting Setup Wizard (/setup) dari DB: {key: value} non-kosong.
+
+    Dibaca LANGSUNG dari tabel `settings` (bukan via os.environ) supaya:
+      - Prioritas jelas: setting wizard > .env > default.
+      - RESET sebuah setting langsung kembali ke nilai .env/default saat
+        refresh(), tanpa nilai usang menempel di os.environ.
+    Aman bila DB / tabel belum ada (return {}).
+    """
+    try:
+        from utils.db import DB_FILE
+        if not os.path.exists(DB_FILE):
+            return {}
+        from utils.settings_store import all_settings
+        return {k: v for k, v in all_settings().items()
+                if v is not None and str(v).strip() != ""}
+    except Exception:
+        return {}
+
+
+_WIZARD = _load_wizard_settings()
+
+
+def _raw(name):
+    """Nilai mentah key: setting wizard bila ada, selain itu dari environment."""
+    if name in _WIZARD:
+        return _WIZARD[name]
+    return os.getenv(name)
 
 
 def _int(name, default=0, required=False):
@@ -24,7 +58,7 @@ def _int(name, default=0, required=False):
       semua yang kurang sekaligus dengan pesan ramah).
     - nilai non-numerik diperlakukan seperti kosong (dicatat bila required).
     """
-    raw = os.getenv(name)
+    raw = _raw(name)
     if raw is None or str(raw).strip() == "":
         if required:
             MISSING_REQUIRED.append(name)
@@ -38,13 +72,13 @@ def _int(name, default=0, required=False):
 
 
 def _str(name, default=""):
-    val = os.getenv(name)
+    val = _raw(name)
     return val if (val is not None and str(val).strip() != "") else default
 
 
 def _bool(name, default=False):
     """Ambil env var sebagai boolean. true/1/yes/on (case-insensitive) -> True."""
-    raw = os.getenv(name)
+    raw = _raw(name)
     if raw is None or str(raw).strip() == "":
         return default
     return str(raw).strip().lower() in ("1", "true", "yes", "on", "y")
@@ -164,3 +198,23 @@ FAQ_CHANNEL_ID = _int("FAQ_CHANNEL_ID", 0)
 AUTOCS_CHANNEL_ID = _int("AUTOCS_CHANNEL_ID", 0)
 # Channel admin tujuan kiriman /saran (0 = pakai LOG_CHANNEL_ID).
 FEEDBACK_CHANNEL_ID = _int("FEEDBACK_CHANNEL_ID", 0)
+
+
+
+def refresh():
+    """Muat ulang konfigurasi dari .env + setting wizard (dipakai /setup).
+
+    Memuat ulang modul ini sehingga semua konstanta dihitung ulang dari
+    os.environ terbaru (termasuk overlay setting wizard). EFEK:
+      - Kode yang membaca config secara *lazy* (mis. `from utils.config import X`
+        di DALAM fungsi) langsung memakai nilai baru.
+      - Nama yang sudah di-`import` di level modul cog lain baru ikut berubah
+        setelah bot di-restart.
+
+    Karena itu wizard tetap menyarankan restart untuk penerapan menyeluruh.
+    """
+    import importlib
+    import sys
+    module = sys.modules.get(__name__)
+    if module is not None:
+        importlib.reload(module)
