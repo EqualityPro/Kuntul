@@ -732,6 +732,44 @@ html[data-theme="dark"]{
 .sidebar{-webkit-backdrop-filter:blur(20px) saturate(150%);backdrop-filter:blur(20px) saturate(150%);}
 /* Garis aksen atas stat-card pakai gradien sunset penuh */
 .stat-card::after{opacity:1;}
+
+/* ============================================================
+   🍱 BENTO GRID — layout dashboard 2026 (tile ukuran bervariasi)
+   Dipakai halaman dashboard. Tile pakai komponen .card/.stat-card
+   yang sama, jadi konsisten dgn seluruh panel.
+   ============================================================ */
+.bento{display:grid;grid-template-columns:repeat(4,1fr);gap:1.15rem;margin-bottom:1.5rem;align-items:stretch;}
+.bento > *{min-width:0;margin-bottom:0;}
+.bento .stat-card,.bento .card{height:100%;margin-bottom:0;}
+.bento .b1{grid-column:span 1;}
+.bento .b2{grid-column:span 2;}
+.bento .b3{grid-column:span 3;}
+.bento .b4{grid-column:span 4;}
+.bento .r2{grid-row:span 2;}
+.chart-wrap{position:relative;width:100%;height:100%;min-height:240px;}
+.mini-stats{display:flex;gap:1.6rem;flex-wrap:wrap;}
+.mini-stats > div{display:flex;flex-direction:column;gap:.15rem;}
+.mini-stats b{font-family:'Plus Jakarta Sans','Inter',sans-serif;font-size:1.7rem;font-weight:800;letter-spacing:-.02em;line-height:1;color:var(--text);}
+.mini-stats span{font-size:.76rem;color:var(--muted);font-weight:500;}
+/* reveal bertahap tile bento (sinkron dgn animasi konten) */
+@media (prefers-reduced-motion: no-preference){
+  .bento > *{animation:cardIn .5s cubic-bezier(.22,.61,.36,1) both;}
+  .bento > *:nth-child(2){animation-delay:.05s}
+  .bento > *:nth-child(3){animation-delay:.10s}
+  .bento > *:nth-child(4){animation-delay:.15s}
+  .bento > *:nth-child(5){animation-delay:.20s}
+  .bento > *:nth-child(6){animation-delay:.25s}
+  .bento > *:nth-child(n+7){animation-delay:.30s}
+}
+@media(max-width:1100px){
+  .bento{grid-template-columns:repeat(2,1fr);}
+  .bento .b2,.bento .b3,.bento .b4{grid-column:span 2;}
+  .bento .r2{grid-row:auto;}
+}
+@media(max-width:560px){
+  .bento{grid-template-columns:1fr;}
+  .bento .b1,.bento .b2,.bento .b3,.bento .b4{grid-column:span 1;}
+}
 </style>
 </head>
 <body>
@@ -1193,8 +1231,8 @@ def index():
             pass
     conn2.close()
 
-    def _stat(cls, icon, label, value, sub):
-        return f'''<div class="stat-card {cls}">
+    def _stat(cls, icon, label, value, sub, span="b1"):
+        return f'''<div class="stat-card {cls} {span}">
           <div class="stat-top"><div class="stat-icon">{ICONS[icon]}</div></div>
           <div class="stat-label">{label}</div>
           <div class="stat-value">{value}</div>
@@ -1207,47 +1245,56 @@ def index():
 <div class="page-header">
   <div class="page-title">Dashboard <small>Ringkasan toko hari ini</small></div>
 </div>
-<div class="stats-grid">
+<div class="bento">
   {_stat("green", "cart", "Transaksi Hari Ini", tx_today, "transaksi selesai")}
   {_stat("gold", "money", "Omzet Hari Ini", omzet_str, "total pemasukan")}
   {_stat("robux", "star", "Rating Toko", rating_str, f"{rating_n} ulasan total")}
   {_stat("ml", "cart", "Tiket Aktif", active_tickets, "semua layanan")}
-</div>
-<div class="card">
-  <div class="card-header"><span class="card-title">{ICONS["money"]} Omzet 14 Hari Terakhir</span>
-    <a href="/transactions" class="btn btn-ghost btn-sm">Lihat transaksi</a></div>
-  <div class="card-body"><canvas id="dashChart" height="90"></canvas></div>
-</div>
-<div class="stats-grid">
-  {_stat("ml", "ml", "Mobile Legends", ml_count, "produk aktif")}
-  {_stat("ff", "ff", "Free Fire", ff_count, "produk aktif")}
-  {_stat("robux", "robux", "Robux Store", robux_count, "item aktif")}
-</div>
-<div class="card">
-  <div class="card-header"><span class="card-title">{ICONS["robux"]} Rate Robux</span></div>
-  <div class="card-body">
-    <div class="rate-display">
-      <div>
-        <div style="font-size:.75rem;color:var(--muted);margin-bottom:.25rem;">Rate saat ini</div>
-        <div class="rate-value">{rate_str}<span style="font-size:.9rem;color:var(--muted);font-weight:400">/Robux</span></div>
+
+  <div class="card b2 r2">
+    <div class="card-header"><span class="card-title">{ICONS["money"]} Omzet 14 Hari Terakhir</span>
+      <a href="/transactions" class="btn btn-ghost btn-sm">Transaksi</a></div>
+    <div class="card-body"><div class="chart-wrap"><canvas id="dashChart"></canvas></div></div>
+  </div>
+
+  <div class="card b2">
+    <div class="card-header"><span class="card-title">{ICONS["robux"]} Rate Robux</span></div>
+    <div class="card-body">
+      <div class="rate-display">
+        <div>
+          <div style="font-size:.75rem;color:var(--muted);margin-bottom:.25rem;">Rate saat ini</div>
+          <div class="rate-value">{rate_str}<span style="font-size:.9rem;color:var(--muted);font-weight:400">/Robux</span></div>
+        </div>
+        <form method="post" action="/robux/rate" class="inline-form">
+          <input type="number" name="rate" placeholder="Rate baru" min="1" style="width:140px;" required>
+          <button type="submit" class="btn btn-primary btn-sm">Update</button>
+        </form>
       </div>
-      <form method="post" action="/robux/rate" class="inline-form">
-        <input type="number" name="rate" placeholder="Rate baru" min="1" style="width:140px;" required>
-        <button type="submit" class="btn btn-primary btn-sm">Update</button>
-      </form>
     </div>
   </div>
-</div>
-<div class="card">
-  <div class="card-header"><span class="card-title">{ICONS["bolt"]} Akses Cepat</span></div>
-  <div class="card-body">
-    <div class="qa-grid">
-      {_qa("/transactions", "money", "Transaksi", "riwayat & export")}
-      {_qa("/tickets", "cart", "Tiket Aktif", "monitor live")}
-      {_qa("/admins", "star", "Performa Admin", "ranking staff")}
-      {_qa("/robux", "robux", "Kelola Robux", "produk & rate")}
-      {_qa("/ml", "ml", "Kelola ML/FF", "produk topup")}
-      {_qa("/analytics", "money", "Analitik", "tren, produk laris & jam sibuk")}
+
+  <div class="card b2">
+    <div class="card-header"><span class="card-title">{ICONS["ml"]} Produk Aktif</span></div>
+    <div class="card-body">
+      <div class="mini-stats">
+        <div><b>{ml_count}</b><span>Mobile Legends</span></div>
+        <div><b>{ff_count}</b><span>Free Fire</span></div>
+        <div><b>{robux_count}</b><span>Robux Store</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card b4">
+    <div class="card-header"><span class="card-title">{ICONS["bolt"]} Akses Cepat</span></div>
+    <div class="card-body">
+      <div class="qa-grid">
+        {_qa("/transactions", "money", "Transaksi", "riwayat & export")}
+        {_qa("/tickets", "cart", "Tiket Aktif", "monitor live")}
+        {_qa("/admins", "star", "Performa Admin", "ranking staff")}
+        {_qa("/robux", "robux", "Kelola Robux", "produk & rate")}
+        {_qa("/ml", "ml", "Kelola ML/FF", "produk topup")}
+        {_qa("/analytics", "money", "Analitik", "tren & jam sibuk")}
+      </div>
     </div>
   </div>
 </div>
@@ -1259,7 +1306,7 @@ new Chart(document.getElementById('dashChart'), {{
   data:{{labels:{chart_labels},datasets:[{{label:'Omzet',data:{chart_omzet},
     borderColor:_acc,backgroundColor:_acc+'22',borderWidth:2,
     pointRadius:2,fill:true,tension:.4}}]}},
-  options:{{responsive:true,plugins:{{legend:{{display:false}}}},
+  options:{{responsive:true,maintainAspectRatio:false,plugins:{{legend:{{display:false}}}},
     scales:{{x:{{grid:{{color:'rgba(148,163,184,.15)'}},ticks:{{color:'#94a3b8',font:{{size:10}}}}}},
     y:{{grid:{{color:'rgba(148,163,184,.15)'}},ticks:{{color:'#94a3b8',font:{{size:10}}}},beginAtZero:true}}}}}}
 }});
