@@ -770,6 +770,25 @@ html[data-theme="dark"]{
   .bento{grid-template-columns:1fr;}
   .bento .b1,.bento .b2,.bento .b3,.bento .b4{grid-column:span 1;}
 }
+
+/* ============================================================
+   📋 ALL-PAGES 2026 — tabel & form modern (berlaku ke SEMUA halaman
+   via BASE, tanpa ubah markup tiap halaman).
+   ============================================================ */
+/* Tabel: panel membulat + header lengket (dalam wrapper scroll) + zebra halus */
+.table-wrapper{border:1px solid var(--glass-border);border-radius:14px;overflow:auto;background:var(--surface);box-shadow:var(--shadow-sm);}
+.table-wrapper > table,.table-wrapper > .data-table{margin:0;}
+.table-wrapper thead th{position:sticky;top:0;z-index:1;background:var(--surface2);}
+tbody tr:nth-child(2n) td{background:color-mix(in srgb, var(--muted) 6%, transparent);}
+tbody tr:hover td{background:var(--accent-soft);}
+
+/* Form: jarak antar grup & aksi lebih lega, tombol konsisten */
+.form-group{margin-bottom:.1rem;}
+.form-actions{padding-top:.4rem;}
+.inline-form{flex-wrap:wrap;}
+
+/* Empty state lebih ramah (kartu putus-putus) */
+.empty{border:1px dashed var(--border2);border-radius:14px;background:var(--surface2);}
 </style>
 </head>
 <body>
