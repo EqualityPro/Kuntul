@@ -10,8 +10,10 @@ import sys
 import sqlite3
 import html
 
-# Load .env manual
-_env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
+# Load .env manual. File ini berada di admin/app.py, jadi root proyek = dua
+# level di atas (parent dari folder admin/).
+_BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_env_path = os.path.join(_BASE_DIR, ".env")
 if os.path.exists(_env_path):
     for _line in open(_env_path):
         _line = _line.strip()
@@ -19,7 +21,9 @@ if os.path.exists(_env_path):
             _k, _v = _line.split('=', 1)
             os.environ.setdefault(_k.strip(), _v.strip())
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# Pastikan root proyek ada di sys.path agar `from utils import ...` dan paket
+# `admin` bisa diimpor walau panel dijalankan dari direktori lain.
+sys.path.insert(0, _BASE_DIR)
 
 from flask import Flask, render_template_string, request, redirect, url_for, session, flash
 from utils import member_names
@@ -34,43 +38,43 @@ def _member_cell(uid, nm):
         return "-"
     from utils import identity
     return identity.identity_html(uid, nm.get(str(uid)))
-from admin_embed import embed_bp
-from admin_insights import insights_bp
-from admin_profile_theme import theme_bp
-from admin_achievement_theme import badge_theme_bp
-from admin_welcome_theme import welcome_theme_bp
-from admin_rating_theme import rating_theme_bp
-from admin_topspender_theme import topspender_card_bp
-from admin_catalog_thumbnail import catalog_thumb_bp
-from admin_lainnya_emoji import lainnya_emoji_bp
-from admin_selfhost import selfhost_bp
-from admin_faq import faq_bp
-from admin_sticky import sticky_bp
-from admin_welcome import welcome_bp
-from admin_afk import afk_bp
-from admin_store_status import store_status_bp
-from admin_warranty import warranty_bp
-from admin_queue import queue_text_bp
-from admin_orders import order_bp
-from admin_reviews import review_bp
-from admin_midman import midman_bp
-from admin_vilog import vilog_bp
-from admin_gp import gp_bp
-from admin_robux import robux_bp
-from admin_ml import ml_bp
-from admin_lainnya import lainnya_text_bp
-from admin_lainnya_info import lainnya_info_bp
-from admin_faq_text import faq_text_bp
-from admin_sub_followup import sub_followup_bp
-from admin_top_spender import top_spender_bp
-from admin_help import help_bp
-from admin_profile_text import profile_text_bp
-from admin_text_center import text_center_bp
-from admin_text_backup import text_backup_bp
-from admin_text_audit import text_audit_bp
-from admin_db_backup import db_backup_bp
-from admin_product_search import psearch_bp
-from admin_server_stats import server_stats_bp
+from admin.admin_embed import embed_bp
+from admin.admin_insights import insights_bp
+from admin.admin_profile_theme import theme_bp
+from admin.admin_achievement_theme import badge_theme_bp
+from admin.admin_welcome_theme import welcome_theme_bp
+from admin.admin_rating_theme import rating_theme_bp
+from admin.admin_topspender_theme import topspender_card_bp
+from admin.admin_catalog_thumbnail import catalog_thumb_bp
+from admin.admin_lainnya_emoji import lainnya_emoji_bp
+from admin.admin_selfhost import selfhost_bp
+from admin.admin_faq import faq_bp
+from admin.admin_sticky import sticky_bp
+from admin.admin_welcome import welcome_bp
+from admin.admin_afk import afk_bp
+from admin.admin_store_status import store_status_bp
+from admin.admin_warranty import warranty_bp
+from admin.admin_queue import queue_text_bp
+from admin.admin_orders import order_bp
+from admin.admin_reviews import review_bp
+from admin.admin_midman import midman_bp
+from admin.admin_vilog import vilog_bp
+from admin.admin_gp import gp_bp
+from admin.admin_robux import robux_bp
+from admin.admin_ml import ml_bp
+from admin.admin_lainnya import lainnya_text_bp
+from admin.admin_lainnya_info import lainnya_info_bp
+from admin.admin_faq_text import faq_text_bp
+from admin.admin_sub_followup import sub_followup_bp
+from admin.admin_top_spender import top_spender_bp
+from admin.admin_help import help_bp
+from admin.admin_profile_text import profile_text_bp
+from admin.admin_text_center import text_center_bp
+from admin.admin_text_backup import text_backup_bp
+from admin.admin_text_audit import text_audit_bp
+from admin.admin_db_backup import db_backup_bp
+from admin.admin_product_search import psearch_bp
+from admin.admin_server_stats import server_stats_bp
 from functools import wraps
 
 # Brand panel: ikut STORE_NAME (.env) supaya tidak ada "Cellyn" yang nyangkut
@@ -2715,10 +2719,3 @@ def autopost_edit_save(tid):
     update_autopost_task(tid, channel_id=channel_id, message=message, interval_minutes=interval_minutes)
     flash("AutoPost berhasil diupdate.", "success")
     return redirect(url_for("page_autopost"))
-
-
-if __name__ == "__main__":
-    port = int(os.environ.get("ADMIN_PORT", 5000))
-    print(f"[ADMIN] {ADMIN_BRAND} Panel berjalan di http://localhost:{port}")
-    print(f"[ADMIN] Password: {ADMIN_PASSWORD}")
-    app.run(host="0.0.0.0", port=port, debug=False)

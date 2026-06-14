@@ -9,7 +9,7 @@ Cog membaca teks lewat utils.faq_text. Halaman dibangun lewat komponen bersama
 """
 from flask import Blueprint
 
-import admin_text_editor as ate
+from admin import admin_text_editor as ate
 from utils import faq_text as fqtext
 
 faq_text_bp = Blueprint("faq_text_bp", __name__)

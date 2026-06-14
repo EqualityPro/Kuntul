@@ -9,7 +9,7 @@ bersama `admin_text_editor`.
 """
 from flask import Blueprint
 
-import admin_text_editor as ate
+from admin import admin_text_editor as ate
 from utils import top_spender_text as tstext
 
 top_spender_bp = Blueprint("top_spender_bp", __name__)

@@ -9,7 +9,7 @@ Cog membaca teks lewat utils.gp_text. Halaman dibangun lewat komponen bersama
 """
 from flask import Blueprint
 
-import admin_text_editor as ate
+from admin import admin_text_editor as ate
 from utils import gp_text as gptext
 
 gp_bp = Blueprint("gp_bp", __name__)

@@ -10,7 +10,7 @@ bersama `admin_text_editor`.
 """
 from flask import Blueprint
 
-import admin_text_editor as ate
+from admin import admin_text_editor as ate
 from utils import queue_text as qtext
 
 queue_text_bp = Blueprint("queue_text_bp", __name__)

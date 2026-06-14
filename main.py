@@ -52,7 +52,8 @@ def start_admin_panel():
     try:
         admin_log = open(os.path.join(BOT_DIR, "admin.log"), "a")
         subprocess.Popen(
-            [sys.executable, os.path.join(BOT_DIR, "admin.py")],
+            [sys.executable, "-m", "admin"],
+            cwd=BOT_DIR,
             stdout=admin_log,
             stderr=admin_log
         )
