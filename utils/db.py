@@ -139,6 +139,21 @@ def init_db():
             updated_at TEXT
         )
     ''')
+    # Komplain/refund terstruktur (lihat utils/complaints.py).
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS complaints (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id       INTEGER,
+            username      TEXT,
+            category      TEXT,
+            detail        TEXT,
+            related_order TEXT DEFAULT '',
+            status        TEXT DEFAULT 'baru',
+            admin_note    TEXT DEFAULT '',
+            created_at    TEXT,
+            updated_at    TEXT
+        )
+    ''')
     c.execute('''
         CREATE TABLE IF NOT EXISTS ml_tickets (
             channel_id      INTEGER PRIMARY KEY,

@@ -75,6 +75,7 @@ GROUPS = [
         Field("FAQ_CHANNEL_ID", "FAQ", "channel"),
         Field("AUTOCS_CHANNEL_ID", "Auto-CS", "channel"),
         Field("FEEDBACK_CHANNEL_ID", "Saran/Masukan", "channel"),
+        Field("COMPLAINT_CHANNEL_ID", "Komplain/Refund", "channel"),
         Field("PUBLIC_QUEUE_CHANNEL_ID", "Papan Antrian Publik", "channel"),
         Field("CUSTOMER_INSIGHT_CHANNEL_ID", "Insight Pelanggan", "channel"),
         Field("ADMIN_STATS_CHANNEL_ID", "Statistik Admin", "channel"),
