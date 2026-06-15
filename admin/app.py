@@ -2043,6 +2043,10 @@ def page_lainnya():
           </table>
         </div>"""
 
+    cat_options = "".join(
+        f'<option value="{cat}">{cat}</option>' for cat in sorted(categories.keys())
+    )
+
     content = f"""
 <div class="page-header">
   <div class="page-title">Lainnya<small>Kelola produk Cloud Phone & Discord Nitro</small></div>
@@ -2072,6 +2076,46 @@ def page_lainnya():
       </div>
       <button type="submit" class="btn-primary" style="padding:.5rem 1rem;height:fit-content;margin-top:auto;">Tambah</button>
     </form>
+  </div>
+</div>
+
+<!-- Edit Harga Massal -->
+<div class="card" style="margin-bottom:1.5rem;">
+  <div class="card-header"><span class="card-title">💰 Edit Harga Massal</span></div>
+  <div class="card-body">
+    <form method="POST" action="/lainnya/bulk-price" onsubmit="return confirm('Terapkan perubahan harga massal ke produk terpilih? Ini mengubah banyak produk sekaligus.')" style="display:grid;grid-template-columns:2fr 1.6fr 1fr 1.4fr auto;gap:.75rem;align-items:end;">
+      <div>
+        <label style="font-size:.76rem;color:var(--muted2);font-weight:600;display:block;margin-bottom:.35rem;">Kategori</label>
+        <select name="category" style="width:100%;padding:.55rem .8rem;background:var(--surface);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-size:.86rem;">
+          <option value="__ALL__">Semua kategori</option>
+          {cat_options}
+        </select>
+      </div>
+      <div>
+        <label style="font-size:.76rem;color:var(--muted2);font-weight:600;display:block;margin-bottom:.35rem;">Operasi</label>
+        <select name="op" style="width:100%;padding:.55rem .8rem;background:var(--surface);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-size:.86rem;">
+          <option value="naik_persen">Naik (%)</option>
+          <option value="turun_persen">Turun (%)</option>
+          <option value="tambah_rp">Tambah (Rp)</option>
+          <option value="kurang_rp">Kurang (Rp)</option>
+        </select>
+      </div>
+      <div>
+        <label style="font-size:.76rem;color:var(--muted2);font-weight:600;display:block;margin-bottom:.35rem;">Nilai</label>
+        <input name="value" type="number" min="0" step="any" placeholder="10" style="width:100%;padding:.55rem .8rem;background:var(--surface);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-size:.86rem;">
+      </div>
+      <div>
+        <label style="font-size:.76rem;color:var(--muted2);font-weight:600;display:block;margin-bottom:.35rem;">Bulatkan ke</label>
+        <select name="rounding" style="width:100%;padding:.55rem .8rem;background:var(--surface);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-size:.86rem;">
+          <option value="500">Rp 500 terdekat</option>
+          <option value="1000">Rp 1.000 terdekat</option>
+          <option value="100">Rp 100 terdekat</option>
+          <option value="0">Tanpa pembulatan</option>
+        </select>
+      </div>
+      <button type="submit" class="btn-primary" style="padding:.5rem 1rem;height:fit-content;margin-top:auto;">Terapkan</button>
+    </form>
+    <div class="note" style="margin-top:.8rem;">Contoh: kategori <b>STREAMING</b> → <b>Naik (%)</b> → nilai <b>10</b> → semua harga di kategori itu naik 10% lalu dibulatkan. Harga hasil tak akan di bawah 0.</div>
   </div>
 </div>
 
@@ -2166,6 +2210,64 @@ def lainnya_dedupe():
         flash(f"{removed} produk dobel dihapus (disisakan 1 tiap kategori+nama).", "success")
     else:
         flash("Tidak ada produk dobel ditemukan.", "success")
+    return redirect(url_for("page_lainnya"))
+
+
+@app.route("/lainnya/bulk-price", methods=["POST"])
+def lainnya_bulk_price():
+    """Ubah harga banyak produk Lainnya sekaligus (per kategori / semua)."""
+    if not session.get("logged_in"):
+        return redirect(url_for("login"))
+    category = request.form.get("category", "__ALL__").strip()
+    op = request.form.get("op", "").strip()
+    raw_val = request.form.get("value", "").strip()
+    try:
+        val = float(raw_val)
+    except ValueError:
+        flash("Nilai harus berupa angka!", "error")
+        return redirect(url_for("page_lainnya"))
+    if val <= 0:
+        flash("Nilai harus lebih dari 0!", "error")
+        return redirect(url_for("page_lainnya"))
+    try:
+        rnd = int(request.form.get("rounding", "0"))
+    except ValueError:
+        rnd = 0
+    if op not in ("naik_persen", "turun_persen", "tambah_rp", "kurang_rp"):
+        flash("Operasi tidak valid!", "error")
+        return redirect(url_for("page_lainnya"))
+
+    from utils.db import get_conn
+    conn = get_conn()
+    c = conn.cursor()
+    if category and category != "__ALL__":
+        rows = c.execute("SELECT id, harga FROM lainnya_products WHERE category=?", (category,)).fetchall()
+    else:
+        rows = c.execute("SELECT id, harga FROM lainnya_products").fetchall()
+
+    changed = 0
+    for r in rows:
+        old = r["harga"] or 0
+        if op == "naik_persen":
+            new = old * (1 + val / 100)
+        elif op == "turun_persen":
+            new = old * (1 - val / 100)
+        elif op == "tambah_rp":
+            new = old + val
+        else:  # kurang_rp
+            new = old - val
+        new = int(round(new))
+        if rnd > 0:
+            new = int(round(new / rnd)) * rnd
+        if new < 0:
+            new = 0
+        if new != old:
+            c.execute("UPDATE lainnya_products SET harga=? WHERE id=?", (new, r["id"]))
+            changed += 1
+    conn.commit()
+    conn.close()
+    scope = "semua kategori" if (not category or category == "__ALL__") else f"kategori '{category}'"
+    flash(f"Harga massal diterapkan ke {scope}: {changed} produk diperbarui.", "success")
     return redirect(url_for("page_lainnya"))
 
 
