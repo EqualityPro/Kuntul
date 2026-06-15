@@ -75,6 +75,7 @@ from admin.admin_text_audit import text_audit_bp
 from admin.admin_db_backup import db_backup_bp
 from admin.admin_product_search import psearch_bp
 from admin.admin_server_stats import server_stats_bp
+from admin.admin_complaints import complaints_bp
 from functools import wraps
 
 # Brand panel: ikut STORE_NAME (.env) supaya tidak ada "Cellyn" yang nyangkut
@@ -124,6 +125,7 @@ app.register_blueprint(text_audit_bp)
 app.register_blueprint(db_backup_bp)
 app.register_blueprint(psearch_bp)
 app.register_blueprint(server_stats_bp)
+app.register_blueprint(complaints_bp)
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "cellyn123")
 # DB ada di root proyek (bukan di dalam folder admin/). _BASE_DIR = parent dari
 # folder admin/ — lihat blok pemuatan .env di atas. Penting setelah admin/ jadi
@@ -1071,6 +1073,7 @@ def render_page(content, **ctx):
     {_a("Performa Admin", "/admins", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/></svg>', "insights_bp.page_admins")}
     {_a("Rating &amp; Ulasan", "/reviews", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>', "page_reviews")}
     {_a("Pencarian Nihil", "/search-misses", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></svg>', "page_search_misses")}
+    {_a("Komplain &amp; Refund", "/complaints", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>', "complaints_bp.page_complaints")}
     {_grpend()}
     {_grp("Tampilan &amp; Profil", "tampilan", False)}
     {_a("Editor Profil", "/profil-theme", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"/></svg>', "theme_bp.page_theme")}
