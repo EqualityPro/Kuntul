@@ -2022,6 +2022,7 @@ def page_lainnya():
             status_badge = f'<span class="badge badge-{"aktif" if p["active"] else "nonaktif"}">{status}</span>'
             rows += f"""
             <tr data-name="{p["name"].lower().replace('"', "&quot;")}">
+              <td style="width:34px;text-align:center;"><input type="checkbox" class="bulk-chk" name="ids" value="{p["id"]}"></td>
               <td>{p["id"]}</td>
               <td>{p["name"]}</td>
               <td>Rp {p["harga"]:,}</td>
@@ -2038,7 +2039,7 @@ def page_lainnya():
         <div class="card lainnya-cat" data-cat="{cat.lower().replace('"', "&quot;")}" style="margin-bottom:1rem;">
           <div class="card-header"><span class="card-title">{cat}</span><span style="color:var(--muted2);font-size:.8rem;font-weight:600;">{len(items)} item</span></div>
           <table>
-            <thead><tr><th>ID</th><th>Nama</th><th>Harga</th><th>Status</th><th>Aksi</th></tr></thead>
+            <thead><tr><th style="width:34px;text-align:center;"><input type="checkbox" onclick="toggleCat(this)" title="Pilih semua di kategori ini"></th><th>ID</th><th>Nama</th><th>Harga</th><th>Status</th><th>Aksi</th></tr></thead>
             <tbody>{rows}</tbody>
           </table>
         </div>"""
@@ -2119,16 +2120,61 @@ def page_lainnya():
   </div>
 </div>
 
+<!-- Manajemen Kategori -->
+<div class="card" style="margin-bottom:1.5rem;">
+  <div class="card-header"><span class="card-title">🏷️ Manajemen Kategori</span></div>
+  <div class="card-body">
+    <form method="POST" action="/lainnya/category/rename" onsubmit="return confirm('Ubah/gabung kategori? Semua produk di kategori sumber akan pindah.')" style="display:grid;grid-template-columns:2fr auto 2fr auto;gap:.75rem;align-items:end;">
+      <div>
+        <label style="font-size:.76rem;color:var(--muted2);font-weight:600;display:block;margin-bottom:.35rem;">Kategori sumber</label>
+        <select name="source" style="width:100%;padding:.55rem .8rem;background:var(--surface);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-size:.86rem;">
+          {cat_options}
+        </select>
+      </div>
+      <div style="text-align:center;padding-bottom:.6rem;color:var(--muted);font-size:1.2rem;">→</div>
+      <div>
+        <label style="font-size:.76rem;color:var(--muted2);font-weight:600;display:block;margin-bottom:.35rem;">Jadikan / gabung ke</label>
+        <input name="target" list="catList" placeholder="Ketik nama baru / pilih kategori tujuan" style="width:100%;padding:.55rem .8rem;background:var(--surface);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-size:.86rem;">
+        <datalist id="catList">{cat_options}</datalist>
+      </div>
+      <button type="submit" class="btn-primary" style="padding:.5rem 1rem;height:fit-content;margin-top:auto;">Terapkan</button>
+    </form>
+    <div class="note" style="margin-top:.8rem;"><b>Rename:</b> ketik nama baru. <b>Gabung:</b> pilih kategori tujuan yang sudah ada — produk digabung & duplikat (kategori+nama sama) otomatis dibersihkan.</div>
+  </div>
+</div>
+
 <!-- Cari -->
 <div style="margin-bottom:1rem;">
   <input id="lainnyaSearch" type="text" placeholder="Cari kategori atau nama item..." oninput="filterLainnya()" autocomplete="off" style="width:100%;padding:.6rem .9rem;background:var(--surface);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-size:.9rem;">
 </div>
 
-<!-- Daftar Produk -->
-{cat_html if cat_html else '<div class="card"><div class="card-body empty">Belum ada produk</div></div>'}
-<div id="lainnyaNoResult" class="card" style="display:none;"><div class="card-body empty">Tidak ada hasil yang cocok</div></div>
+<!-- Daftar Produk + Aksi Massal -->
+<form id="bulkForm" method="POST" action="/lainnya/bulk-action">
+  <div class="card" style="margin-bottom:1rem;">
+    <div class="card-body" style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;">
+      <span style="font-weight:700;font-size:.85rem;"><span id="bulkCount">0</span> dipilih</span>
+      <span style="color:var(--muted);font-size:.78rem;">— centang produk lalu pilih aksi:</span>
+      <div style="flex:1;min-width:8px;"></div>
+      <button type="submit" name="action" value="activate" class="btn btn-success btn-sm">Aktifkan</button>
+      <button type="submit" name="action" value="deactivate" class="btn btn-warn btn-sm">Nonaktifkan</button>
+      <select name="target_category" style="padding:.42rem .6rem;background:var(--surface);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-size:.82rem;">
+        <option value="">Pindah ke…</option>
+        {cat_options}
+      </select>
+      <button type="submit" name="action" value="move" class="btn btn-ghost btn-sm">Pindahkan</button>
+      <button type="submit" name="action" value="delete" class="btn btn-danger btn-sm" onclick="return confirm('Hapus semua produk yang dipilih?')">Hapus</button>
+    </div>
+  </div>
+  {cat_html if cat_html else '<div class="card"><div class="card-body empty">Belum ada produk</div></div>'}
+  <div id="lainnyaNoResult" class="card" style="display:none;"><div class="card-body empty">Tidak ada hasil yang cocok</div></div>
+</form>
 
 <script>
+function _lnBulkChks(){{return document.querySelectorAll('.bulk-chk');}}
+function updateBulkCount(){{var n=0;_lnBulkChks().forEach(function(c){{if(c.checked)n++;}});var el=document.getElementById('bulkCount');if(el)el.textContent=n;}}
+function toggleCat(master){{var tb=master.closest('table');if(!tb)return;tb.querySelectorAll('.bulk-chk').forEach(function(c){{c.checked=master.checked;}});updateBulkCount();}}
+document.addEventListener('change',function(e){{if(e.target&&e.target.classList&&e.target.classList.contains('bulk-chk'))updateBulkCount();}});
+(function(){{var bf=document.getElementById('bulkForm');if(bf)bf.addEventListener('submit',function(e){{var any=false;_lnBulkChks().forEach(function(c){{if(c.checked)any=true;}});if(!any){{e.preventDefault();alert('Centang dulu produk yang mau diproses.');}}}});}})();
 function filterLainnya(){{
   var q = (document.getElementById('lainnyaSearch').value || '').trim().toLowerCase();
   var cards = document.querySelectorAll('.lainnya-cat');
@@ -2268,6 +2314,93 @@ def lainnya_bulk_price():
     conn.close()
     scope = "semua kategori" if (not category or category == "__ALL__") else f"kategori '{category}'"
     flash(f"Harga massal diterapkan ke {scope}: {changed} produk diperbarui.", "success")
+    return redirect(url_for("page_lainnya"))
+
+
+@app.route("/lainnya/bulk-action", methods=["POST"])
+def lainnya_bulk_action():
+    """Aksi massal produk Lainnya terpilih: aktifkan/nonaktifkan/pindah/hapus."""
+    if not session.get("logged_in"):
+        return redirect(url_for("login"))
+    action = request.form.get("action", "")
+    ids = [int(i) for i in request.form.getlist("ids") if str(i).isdigit()]
+    if not ids:
+        flash("Tidak ada produk yang dipilih.", "error")
+        return redirect(url_for("page_lainnya"))
+    from utils.db import get_conn
+    conn = get_conn()
+    c = conn.cursor()
+    qm = ",".join("?" * len(ids))
+    if action == "activate":
+        c.execute(f"UPDATE lainnya_products SET active=1 WHERE id IN ({qm})", ids)
+        msg = f"{c.rowcount} produk diaktifkan."
+    elif action == "deactivate":
+        c.execute(f"UPDATE lainnya_products SET active=0 WHERE id IN ({qm})", ids)
+        msg = f"{c.rowcount} produk dinonaktifkan."
+    elif action == "delete":
+        c.execute(f"DELETE FROM lainnya_products WHERE id IN ({qm})", ids)
+        msg = f"{c.rowcount} produk dihapus."
+    elif action == "move":
+        target = request.form.get("target_category", "").strip().upper()
+        if not target:
+            conn.close()
+            flash("Pilih kategori tujuan dulu (dropdown 'Pindah ke…').", "error")
+            return redirect(url_for("page_lainnya"))
+        c.execute(f"UPDATE lainnya_products SET category=? WHERE id IN ({qm})", [target] + ids)
+        moved = c.rowcount
+        # Bersihkan duplikat (kategori+nama sama) yang mungkin muncul akibat pindah.
+        c.execute("DELETE FROM lainnya_products WHERE id NOT IN "
+                  "(SELECT MIN(id) FROM lainnya_products GROUP BY category, name)")
+        msg = f"{moved} produk dipindah ke kategori '{target}'."
+    else:
+        conn.close()
+        flash("Aksi tidak valid.", "error")
+        return redirect(url_for("page_lainnya"))
+    conn.commit()
+    conn.close()
+    flash(msg, "success")
+    return redirect(url_for("page_lainnya"))
+
+
+@app.route("/lainnya/category/rename", methods=["POST"])
+def lainnya_category_rename():
+    """Rename kategori, atau gabung ke kategori tujuan yang sudah ada."""
+    if not session.get("logged_in"):
+        return redirect(url_for("login"))
+    source = request.form.get("source", "").strip().upper()
+    target = request.form.get("target", "").strip().upper()
+    if not source or not target:
+        flash("Kategori sumber & tujuan wajib diisi.", "error")
+        return redirect(url_for("page_lainnya"))
+    if source == target:
+        flash("Kategori sumber & tujuan sama.", "error")
+        return redirect(url_for("page_lainnya"))
+    from utils.db import get_conn
+    conn = get_conn()
+    c = conn.cursor()
+    n = c.execute("SELECT COUNT(*) FROM lainnya_products WHERE category=?", (source,)).fetchone()[0]
+    if n == 0:
+        conn.close()
+        flash(f"Kategori '{source}' tidak ditemukan / kosong.", "error")
+        return redirect(url_for("page_lainnya"))
+    target_exists = c.execute(
+        "SELECT COUNT(*) FROM lainnya_products WHERE category=?", (target,)
+    ).fetchone()[0] > 0
+    c.execute("UPDATE lainnya_products SET category=? WHERE category=?", (target, source))
+    removed = 0
+    if target_exists:
+        before = c.execute("SELECT COUNT(*) FROM lainnya_products").fetchone()[0]
+        c.execute("DELETE FROM lainnya_products WHERE id NOT IN "
+                  "(SELECT MIN(id) FROM lainnya_products GROUP BY category, name)")
+        after = c.execute("SELECT COUNT(*) FROM lainnya_products").fetchone()[0]
+        removed = before - after
+    conn.commit()
+    conn.close()
+    if target_exists:
+        extra = f" ({removed} duplikat dibersihkan)" if removed else ""
+        flash(f"Kategori '{source}' digabung ke '{target}' — {n} produk dipindah{extra}.", "success")
+    else:
+        flash(f"Kategori '{source}' diganti jadi '{target}' — {n} produk.", "success")
     return redirect(url_for("page_lainnya"))
 
 
