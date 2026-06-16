@@ -358,7 +358,7 @@ class Vilog(commands.Cog):
 
         total = _calc_total(robux, rate)
         ticket_number = next_ticket_number()
-        ch_name = ticket_ui.channel_name("vilog", ticket_number, interaction.user.name)
+        ch_name = ticket_ui.channel_name("Robux Vilog", ticket_number, interaction.user.name)
         try:
             channel = await guild.create_text_channel(
                 name=ch_name,
@@ -380,6 +380,7 @@ class Vilog(commands.Cog):
             "backup_codes": "\n".join(backup_codes),
             "premium": premium,
             "boost": {"nama": "Vilog", "robux": robux},
+            "item_name": "Robux Vilog",
             "metode": "vilog",
             "nominal": total,
             "admin_id": None,

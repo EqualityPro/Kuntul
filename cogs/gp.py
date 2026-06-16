@@ -239,7 +239,7 @@ class ConfirmView(discord.ui.View):
 
         ticket_number = next_ticket_number()
         channel = await guild.create_text_channel(
-            name=ticket_ui.channel_name("gp", ticket_number, member.name), category=ticket_category, overwrites=overwrites
+            name=ticket_ui.channel_name("Gamepass", ticket_number, member.name), category=ticket_category, overwrites=overwrites
         )
 
         now = datetime.datetime.now(datetime.timezone.utc)

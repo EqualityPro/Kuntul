@@ -64,9 +64,19 @@ def _sanitize_username(username: str) -> str:
     return u[:20] or "user"
 
 
+def _sanitize_label(label: str) -> str:
+    """Amankan nama item jadi slug channel Discord (lowercase, tanpa karakter aneh)."""
+    s = re.sub(r"[^a-z0-9]+", "-", (label or "").lower()).strip("-")
+    return s[:40] or "tiket"
+
+
 def channel_name(layanan: str, number: int, username: str) -> str:
-    """Bangun nama channel: '📍-{layanan}-{0000044}-{username}'."""
-    return f"📍-{layanan.lower()}-{format_number(number)}-{_sanitize_username(username)}"
+    """Bangun nama channel: '📍-{item/layanan}-{0000044}-{username}'.
+
+    `layanan` boleh berupa nama item yang dibeli (mis. 'Robux Vilog',
+    'BOOST SERVER') — otomatis di-slug-kan agar aman untuk Discord.
+    """
+    return f"📍-{_sanitize_label(layanan)}-{format_number(number)}-{_sanitize_username(username)}"
 
 
 def _today_str() -> str:

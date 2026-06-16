@@ -104,6 +104,7 @@ def normalize_ticket(layanan, channel_id, ticket, handling_map=None, priority_id
         "opened_at": _as_datetime(ticket.get("opened_at")),
         "handling": channel_id in hmap,
         "is_priority": member_id is not None and member_id in pids,
+        "disp": (ticket.get("item_name") or "").strip(),
     }
 
 

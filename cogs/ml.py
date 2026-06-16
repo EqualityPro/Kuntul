@@ -225,7 +225,7 @@ class GameFormModal(discord.ui.Modal):
         game_slug = game["code"].lower().replace(" ", "")
         ticket_number = next_ticket_number()
         channel = await guild.create_text_channel(
-            name=ticket_ui.channel_name(game_slug, ticket_number, user.name), category=category, overwrites=overwrites
+            name=ticket_ui.channel_name(game["name"], ticket_number, user.name), category=category, overwrites=overwrites
         )
         server_val = self.server_id_input.value.strip() if game.get("needs_server") else "-"
         ticket = {
