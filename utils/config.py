@@ -198,8 +198,6 @@ FAQ_CHANNEL_ID = _int("FAQ_CHANNEL_ID", 0)
 AUTOCS_CHANNEL_ID = _int("AUTOCS_CHANNEL_ID", 0)
 # Channel admin tujuan kiriman /saran (0 = pakai LOG_CHANNEL_ID).
 FEEDBACK_CHANNEL_ID = _int("FEEDBACK_CHANNEL_ID", 0)
-# Channel admin tujuan notifikasi /komplain (0 = pakai FEEDBACK/LOG_CHANNEL_ID).
-COMPLAINT_CHANNEL_ID = _int("COMPLAINT_CHANNEL_ID", 0)
 
 
 

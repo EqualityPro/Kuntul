@@ -28,7 +28,7 @@ COGS = [
     "cogs.member_sync",
     "cogs.admin_stats", "cogs.queue", "cogs.sticky", "cogs.help_slash",
     "cogs.profile", "cogs.faq", "cogs.achievements",
-    "cogs.setup_wizard", "cogs.complaints"
+    "cogs.setup_wizard"
 ]
 
 
