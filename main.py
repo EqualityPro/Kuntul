@@ -108,11 +108,17 @@ def start_cloudflared():
             return
         cf_log_path = os.path.join(BOT_DIR, "cloudflared.log")
         cf_log = open(cf_log_path, "a")
-        subprocess.Popen(
-            [cf_path, "tunnel", "--url", "http://localhost:5000"],
-            stdout=cf_log,
-            stderr=cf_log
-        )
+        token = (os.getenv("CF_TUNNEL_TOKEN") or "").strip()
+        if token:
+            # Named tunnel: URL PERMANEN (domain sendiri), public hostname &
+            # routing dikonfigurasi di dashboard Cloudflare Zero Trust.
+            cmd = [cf_path, "tunnel", "run", "--token", token]
+            print("[CF] Named tunnel (URL permanen) dijalankan.")
+        else:
+            # Quick tunnel: URL acak trycloudflare yang berubah tiap restart.
+            cmd = [cf_path, "tunnel", "--url", "http://localhost:5000"]
+            print("[CF] Quick tunnel (URL acak) dijalankan.")
+        subprocess.Popen(cmd, stdout=cf_log, stderr=cf_log)
         print("[CF] Cloudflare tunnel started.")
     except Exception as e:
         print(f"[CF] Failed to start cloudflared: {e}")
@@ -143,15 +149,22 @@ async def setup_and_run(bot):
             return
 
         cf_url = None
-        cf_log = os.path.join(BOT_DIR, "cloudflared.log")
-        if os.path.exists(cf_log):
-            try:
-                with open(cf_log, "r", errors="ignore") as f:
-                    matches = re.findall(r'https://\S+trycloudflare\.com', f.read())
-                    if matches:
-                        cf_url = matches[-1]
-            except Exception:
-                pass
+        permanent = False
+        host = (os.getenv("CF_TUNNEL_HOSTNAME") or "").strip()
+        if host:
+            # Named tunnel: URL permanen dari domain sendiri.
+            cf_url = host if host.startswith("http") else f"https://{host}"
+            permanent = True
+        else:
+            cf_log = os.path.join(BOT_DIR, "cloudflared.log")
+            if os.path.exists(cf_log):
+                try:
+                    with open(cf_log, "r", errors="ignore") as f:
+                        matches = re.findall(r'https://\S+trycloudflare\.com', f.read())
+                        if matches:
+                            cf_url = matches[-1]
+                except Exception:
+                    pass
 
         if cf_url:
             embed = discord.Embed(
@@ -159,7 +172,7 @@ async def setup_and_run(bot):
                 description=f"Admin panel dapat diakses di:\n**{cf_url}**",
                 color=0x7c6aff
             )
-            embed.set_footer(text="URL ini berubah setiap bot restart.")
+            embed.set_footer(text="URL permanen 🔒" if permanent else "URL ini berubah setiap bot restart.")
         else:
             embed = discord.Embed(
                 title="⚠️ Admin Panel",
