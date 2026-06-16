@@ -106,3 +106,15 @@ def test_success_log_text_buyer_badge():
     assert tu.success_log_text(rating=None, buyer_badge="", **common) == tanpa
 
 
+
+
+
+def test_channel_name_item_label():
+    """Nama channel kini pakai nama item (spasi/karakter -> slug aman)."""
+    assert tu.channel_name("Robux Vilog", 7, "user") == "📍-robux-vilog-0000007-user"
+    assert tu.channel_name("BOOST SERVER", 6, "user") == "📍-boost-server-0000006-user"
+    assert tu.channel_name("1000 Robux", 9, "user") == "📍-1000-robux-0000009-user"
+    assert tu.channel_name("Mobile Legends", 1, "user") == "📍-mobile-legends-0000001-user"
+    assert tu.channel_name("[Custom] 5k", 2, "user") == "📍-custom-5k-0000002-user"
+    # label kosong -> fallback aman
+    assert tu.channel_name("", 3, "user") == "📍-tiket-0000003-user"

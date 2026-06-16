@@ -266,12 +266,12 @@ async def _create_robux_ticket(interaction: discord.Interaction, cart: list, rat
     if admin_role:
         overwrites[admin_role] = discord.PermissionOverwrite(read_messages=True, send_messages=True)
 
+    items_label = ", ".join(i["name"] for i in cart)
     channel = await guild.create_text_channel(
-        name=ticket_ui.channel_name("robux", ticket_number, member.name),
+        name=ticket_ui.channel_name(items_label, ticket_number, member.name),
         category=ticket_category, overwrites=overwrites
     )
 
-    items_label = ", ".join(i["name"] for i in cart)
     ticket = {
         "user_id": member.id,
         "item_id": cart[0]["id"],
@@ -471,12 +471,12 @@ class CustomOrderModal(discord.ui.Modal, title="Custom Order Robux"):
         if admin_role:
             overwrites[admin_role] = discord.PermissionOverwrite(read_messages=True, send_messages=True)
 
+        item_label = f"[Custom] {self.item.value.strip()}"
         channel = await guild.create_text_channel(
-            name=ticket_ui.channel_name("robux", ticket_number, member.name),
+            name=ticket_ui.channel_name(item_label, ticket_number, member.name),
             category=ticket_category, overwrites=overwrites
         )
 
-        item_label = f"[Custom] {self.item.value.strip()}"
         ticket = {
             "user_id": member.id,
             "item_id": 0,

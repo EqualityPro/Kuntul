@@ -84,3 +84,13 @@ def test_build_queue_handling_excluded_from_waiting():
     assert by_ch[30]["position"] == 2 and by_ch[30]["ahead"] == 1
     waiting, handling = q.queue_counts(ordered)
     assert (waiting, handling) == (2, 1)
+
+
+
+def test_normalize_ticket_disp_from_item_name():
+    """Antrian menampilkan nama item (disp) dari item_name bila ada."""
+    n = q.normalize_ticket("lainnya", 100, {"item_name": "BOOST SERVER", "ticket_number": 6})
+    assert n["disp"] == "BOOST SERVER"
+    # tanpa item_name -> disp kosong (papan akan fallback ke label layanan)
+    n2 = q.normalize_ticket("ml", 101, {"item_label": "86 Diamond", "ticket_number": 7})
+    assert n2["disp"] == ""

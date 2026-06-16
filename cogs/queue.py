@@ -126,6 +126,12 @@ def _layanan_label(layanan) -> str:
     return ticket_ui.LAYANAN_DISPLAY.get(layanan, str(layanan or "").upper()).title()
 
 
+def _disp(t) -> str:
+    """Label tampilan tiket: nama item yang dibeli bila ada, jika tidak nama layanan."""
+    d = (t.get("disp") or "").strip()
+    return d[:48] if d else _layanan_label(t.get("layanan"))
+
+
 def _fmt_ticket_no(number) -> str:
     """Nomor tiket -> '#0000044'. Safety-net: 0/None -> '—' (bukan '0000000')."""
     if not number:
@@ -249,7 +255,7 @@ class TicketQueue(commands.Cog):
         """Satu baris papan. `prefix` mis. '1.' untuk barisan menunggu."""
         emoji = _layanan_emoji(t["layanan"])
         num = _fmt_ticket_no(t["ticket_number"])
-        disp = _layanan_label(t["layanan"])
+        disp = _disp(t)
         mention = f"<@{t['member_id']}>" if t["member_id"] else "-"
         when = _fmt_relative(t["opened_at"])
         chan = f"<#{t['channel_id']}>"
@@ -357,7 +363,7 @@ class TicketQueue(commands.Cog):
         if processing:
             for t in processing[:MAX_BOARD_ROWS]:
                 admin = f" — ditangani <@{t['admin_id']}>" if t.get("admin_id") else ""
-                lines.append(f"{HANDLED_EMOJI} {_layanan_label(t['layanan'])}{admin}")
+                lines.append(f"{HANDLED_EMOJI} {_disp(t)}{admin}")
         else:
             lines.append("_Belum ada yang diproses._")
 
@@ -366,7 +372,7 @@ class TicketQueue(commands.Cog):
         if waiting_list:
             for i, t in enumerate(waiting_list[:MAX_BOARD_ROWS], start=1):
                 crown = f" {PRIORITY_BADGE}" if t.get("is_priority") else ""
-                lines.append(f"`{i}.` {_layanan_emoji(t['layanan'])} {_layanan_label(t['layanan'])}{crown}")
+                lines.append(f"`{i}.` {_layanan_emoji(t['layanan'])} {_disp(t)}{crown}")
             if len(waiting_list) > MAX_BOARD_ROWS:
                 lines.append(f"… dan {len(waiting_list) - MAX_BOARD_ROWS} lagi.")
         else:
@@ -430,7 +436,7 @@ class TicketQueue(commands.Cog):
 
     def _card_embed(self, t, text):
         num = _fmt_ticket_no(t["ticket_number"])
-        disp = _layanan_label(t["layanan"])
+        disp = _disp(t)
         emoji = _layanan_emoji(t["layanan"])
         embed = discord.Embed(
             title=f"{emoji} Tiket {num} · {disp}",

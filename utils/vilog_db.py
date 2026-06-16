@@ -47,6 +47,7 @@ def load_vilog_tickets():
             'backup_codes': _dec(row['backup_codes']) or '',
             'premium': bool(row['premium']) if row['premium'] is not None else False,
             'boost': {'nama': row['boost_nama'], 'robux': row['boost_robux']},
+            'item_name': 'Robux Vilog',
             'metode': row['metode'],
             'nominal': row['nominal'],
             'admin_id': row['admin_id'],

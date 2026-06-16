@@ -827,7 +827,7 @@ async def open_product_ticket(interaction: discord.Interaction, product_id: int)
 
     ticket_number = next_ticket_number()
     channel = await guild.create_text_channel(
-        name=ticket_ui.channel_name("lainnya", ticket_number, member.name),
+        name=ticket_ui.channel_name(product["name"], ticket_number, member.name),
         category=cat_channel,
         overwrites=overwrites,
     )
@@ -951,7 +951,7 @@ async def _create_custom_ticket(interaction, cog, member, guild, item_name, qty_
 
     ticket_number = next_ticket_number()
     channel = await guild.create_text_channel(
-        name=ticket_ui.channel_name("lainnya", ticket_number, member.name),
+        name=ticket_ui.channel_name(item_name, ticket_number, member.name),
         category=cat_channel,
         overwrites=overwrites
     )
@@ -1247,7 +1247,7 @@ async def _create_lainnya_ticket(interaction: discord.Interaction, cart: list):
 
     channel = await guild.create_text_channel(
 
-        name=ticket_ui.channel_name("lainnya", ticket_number, member.name), category=cat_channel, overwrites=overwrites
+        name=ticket_ui.channel_name(items_label, ticket_number, member.name), category=cat_channel, overwrites=overwrites
 
     )
 
