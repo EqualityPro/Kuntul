@@ -89,6 +89,4 @@ SERVICE_KEYS = {
     "robux":         "Robux Store",
     "gp":            "Topup Robux via Gamepass",
     "ml":            "Topup Game",
-    "lainnya":       "Cloud Phone & Nitro",
-    "scaset":        "SC TB / Aset Game",
 }
