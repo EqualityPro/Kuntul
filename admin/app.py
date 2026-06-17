@@ -2781,7 +2781,7 @@ def service_info_save():
         from utils.service_info import SERVICE_KEYS
         valid_keys = list(SERVICE_KEYS.keys())
     except Exception:
-        valid_keys = ["midman_trade", "midman_jb", "robux", "ml", "lainnya", "scaset", "gp"]
+        valid_keys = ["midman_trade", "midman_jb", "robux", "ml", "gp", "vilog"]
     if service_key not in valid_keys:
         flash("Service key tidak valid.", "error")
         return redirect(url_for("index"))
@@ -2806,8 +2806,6 @@ def service_info_save():
         "midman_jb": "page_service_info",
         "robux": "page_robux",
         "ml": "page_ml",
-        "lainnya": "page_lainnya",
-        "scaset": "page_service_info",
         "gp": "page_service_info",
         "vilog": "page_service_info",
     }
@@ -2829,7 +2827,6 @@ def page_service_info():
         widgets = (
             _service_info_widget("midman_trade", "Midman Trade")
             + _service_info_widget("midman_jb", "Midman Jual Beli")
-            + _service_info_widget("scaset", "SC TB / Aset Game")
         )
     content = f"""
 <div class="page-header"><h2>Info Layanan</h2><p class="text-muted">Kelola informasi yang ditampilkan ke member sebelum membuka tiket.</p></div>
