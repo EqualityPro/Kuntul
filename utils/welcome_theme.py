@@ -63,6 +63,14 @@ RING_DEFAULTS = {
     "leave": "#9AA3B2",     # abu kalem
 }
 
+# Warna garis embed default per jenis (dipakai saat kartu dibungkus embed).
+# Senada dengan warna embed klasik di cogs/welcome.py.
+EMBED_COLOR_DEFAULTS = {
+    "welcome": "#00BFFF",   # biru langit
+    "boost": "#FF73FA",     # pink boost
+    "leave": "#808080",     # abu
+}
+
 # Teks & warna default per jenis. Skema elemen identik antar jenis:
 # avatar, title, name, subtitle, membercount.
 #   - title/subtitle : teks statis (editable)
@@ -169,6 +177,13 @@ def _build_default(kind) -> dict:
         "panel_opacity": 140,        # 0-255, panel gelap di atas background
         "font_file": None,           # nama file font di data/ (None = font default)
         "canvas": list(CANVAS[kind]),  # penanda ukuran kanvas tema ini dibuat
+        # Bila enabled, gambar kartu dibungkus dalam embed (garis warna + gambar).
+        # Sengaja minimal: tanpa judul/deskripsi/thumbnail (teks & foto profil
+        # sudah ada di gambar kartu).
+        "embed": {
+            "enabled": False,
+            "color": EMBED_COLOR_DEFAULTS[kind],
+        },
         "elements": {
             "avatar":      {"type": "avatar", "x": 70,  "y": 95,  "size": 170, "show": True, "ring_color": ring},
             "title":       {"type": "text",   "x": 290, "y": 78,  "size": 30, "color": d["title_color"],    "bold": True,  "show": True, "text": d["title"]},
@@ -219,6 +234,12 @@ def merge_theme(raw, kind="welcome") -> dict:
                                      theme["panel_opacity"])
     ff = raw.get("font_file")
     theme["font_file"] = ff if (isinstance(ff, str) and ff.strip()) else None
+
+    # Konfig embed (bungkus kartu dalam embed). Toleran terhadap input sebagian.
+    raw_embed = raw.get("embed") if isinstance(raw.get("embed"), dict) else {}
+    theme["embed"]["enabled"] = bool(raw_embed.get("enabled", theme["embed"]["enabled"]))
+    theme["embed"]["color"] = _valid_hex(raw_embed.get("color", theme["embed"]["color"]),
+                                         theme["embed"]["color"])
 
     raw_elems = raw.get("elements") if isinstance(raw.get("elements"), dict) else {}
     for key, base in theme["elements"].items():

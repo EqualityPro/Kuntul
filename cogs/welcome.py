@@ -275,13 +275,33 @@ class WelcomeCog(commands.Cog):
             buf = render_notify_card(kind, avatar_bytes, values=values,
                                      theme=theme, bg_path=bg)
             file = discord.File(buf, filename=f"{kind}.png")
+
+            # Bila admin mengaktifkan mode embed, bungkus gambar kartu dalam embed
+            # (garis warna + gambar; tanpa teks/thumbnail sesuai desain). Mention
+            # tetap di luar embed lewat `content`.
+            send_embed = None
+            emb = theme.get("embed") if isinstance(theme, dict) else None
+            if isinstance(emb, dict) and emb.get("enabled"):
+                try:
+                    color_int = int(str(emb.get("color") or "#5865F2").lstrip("#"), 16)
+                except (TypeError, ValueError):
+                    color_int = 0x5865F2
+                send_embed = discord.Embed(color=color_int)
+                send_embed.set_image(url=f"attachment://{kind}.png")
+
             if test and interaction:
-                await interaction.followup.send(content=preview_label, file=file)
+                if send_embed is not None:
+                    await interaction.followup.send(content=preview_label, embed=send_embed, file=file)
+                else:
+                    await interaction.followup.send(content=preview_label, file=file)
             else:
                 ch = channel or self.bot.get_channel(self._welcome_channel_id)
                 if not ch:
                     return False
-                await ch.send(content=content, file=file)
+                if send_embed is not None:
+                    await ch.send(content=content, embed=send_embed, file=file)
+                else:
+                    await ch.send(content=content, file=file)
             return True
         except Exception as e:
             print(f"[Welcome] Kartu {kind} gagal, fallback embed: {e}")

@@ -221,6 +221,8 @@ def page_theme():
     cur_font = theme.get("font_file") or "(default sistem)"
     has_bg_json = json.dumps(_bg_path(kind) is not None)
     enabled_attr = "checked" if theme.get("enabled") else ""
+    embed_enabled_attr = "checked" if theme.get("embed", {}).get("enabled") else ""
+    embed_color = theme.get("embed", {}).get("color", "#5865F2")
     presets_json = json.dumps(card_presets.presets_for(kind))
     default_json = json.dumps(wtheme.default_theme(kind))
 
@@ -280,6 +282,17 @@ def page_theme():
           Aktifkan kartu {kind_label} (gambar)
         </label>
         <div style="font-size:.78rem;color:var(--muted);margin-top:.3rem;">Jika nonaktif, bot tetap memakai notifikasi embed teks klasik untuk {kind_label}.</div>
+      </div>
+      <div class="form-group" style="border:1px solid var(--border);border-radius:10px;padding:.7rem .8rem;">
+        <label style="display:flex;align-items:center;gap:.5rem;">
+          <input type="checkbox" id="embedEnabled" {embed_enabled_attr}
+            onchange="if(!theme.embed)theme.embed={{}};theme.embed.enabled=this.checked;markDirty();" style="width:auto;">
+          Tampilkan kartu di dalam embed
+        </label>
+        <div style="font-size:.78rem;color:var(--muted);margin:.3rem 0 .6rem;">Gambar kartu dibungkus embed dengan garis warna (ala bot Koya). Tanpa teks/thumbnail tambahan — teks &amp; foto profil sudah ada di gambar. Pratinjau di sini hanya menampilkan gambarnya saja.</div>
+        <label>Warna Garis Embed</label>
+        <input type="color" id="embedColor" value="{embed_color}"
+          oninput="if(!theme.embed)theme.embed={{}};theme.embed.color=this.value;markDirty();">
       </div>
       <div id="cfgWarn" style="display:none;margin:0 0 .8rem;padding:.55rem .7rem;border-radius:8px;
         background:rgba(240,180,40,.12);border:1px solid rgba(240,180,40,.4);color:var(--warning);font-size:.8rem;"></div>
@@ -469,6 +482,8 @@ function resetTheme(){{
   if(!confirm('Kembalikan kartu '+KIND+' ke tema default?')) return;
   fetch('/card-theme/reset',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{kind:KIND}})}}).then(r=>r.json()).then(function(d){{
     theme=d.theme; document.getElementById('cardEnabled').checked=!!theme.enabled;
+    var ee=document.getElementById('embedEnabled'); if(ee) ee.checked=!!(theme.embed&&theme.embed.enabled);
+    var ec=document.getElementById('embedColor'); if(ec&&theme.embed) ec.value=theme.embed.color;
     renderBoxes(); renderControls(); refreshPreview(); setOk('Direset ke default.'); }});
 }}
 function uploadFont(){{
