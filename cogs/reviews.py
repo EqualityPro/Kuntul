@@ -57,6 +57,19 @@ def _card_embed(theme, filename, default_color="#5865F2"):
     except Exception:
         return None
 
+
+def _render_review_content(template, *, name, store, stars, rating, product, mention):
+    """Teks 'content' di ATAS kartu testimoni (editable di panel). Placeholder:
+    {name}, {store}, {stars}, {rating}, {product}, {mention}. None bila kosong."""
+    if not template or not str(template).strip():
+        return None
+    out = str(template)
+    for key, val in (("{name}", name), ("{store}", store), ("{stars}", stars),
+                     ("{rating}", rating), ("{product}", product), ("{mention}", mention)):
+        out = out.replace(key, val or "")
+    out = out.strip()
+    return out[:2000] or None
+
 # Role member loyal (didapat otomatis dari transaksi). Dipakai gating /riwayat.
 # Konsisten dengan cog lain yang assign role by-name saat transaksi selesai.
 # (ROYAL_CUSTOMER_ROLE_NAME diimpor dari utils.config supaya bisa diatur .env.)
@@ -827,7 +840,15 @@ class Reviews(commands.Cog):
             if card_file is not None:
                 try:
                     r_embed = _card_embed(_rtheme, "rating.png", "#FFC107")
-                    msg = await channel.send(embed=r_embed, file=card_file)
+                    content = _render_review_content(
+                        _rtheme.get("content_text"),
+                        name=(member.display_name if member else "Pelanggan"),
+                        store=STORE_NAME,
+                        stars=rv.star_glyphs(review.get("rating")),
+                        rating=f"{review.get('rating')}/5",
+                        product=(review.get("item") or _pretty_layanan(review.get("layanan"))),
+                        mention=f"<@{review['user_id']}>")
+                    msg = await channel.send(content=content, embed=r_embed, file=card_file)
                     rv.set_published(review_id, msg.id)
                     return
                 except Exception as e:
