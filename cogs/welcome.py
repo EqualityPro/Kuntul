@@ -28,6 +28,23 @@ def _find_image(base: str):
     return None
 
 
+def _render_content(template, name, store, mention, count):
+    """Teks 'content' di ATAS kartu/embed (editable di panel).
+
+    Placeholder: {name}, {store}, {mention} (ping), {count}. Mengembalikan None
+    bila template kosong supaya pemanggil bisa fallback ke default (mention).
+    """
+    if not template or not str(template).strip():
+        return None
+    out = str(template)
+    out = out.replace("{name}", name or "")
+    out = out.replace("{store}", store or "")
+    out = out.replace("{mention}", mention or "")
+    out = out.replace("{count}", count or "")
+    out = out.strip()
+    return out[:2000] or None
+
+
 def _get_setting(key):
     conn = get_conn()
     c = conn.cursor()
@@ -193,8 +210,11 @@ class WelcomeCog(commands.Cog):
             values = {"name": member.display_name[:24]}
             if remain is not None:
                 values["membercount"] = f"Tersisa {remain} member"
+            content = _render_content(_ltheme.get("content_text"),
+                                      member.display_name, STORE_NAME,
+                                      member.mention, values.get("membercount"))
             if await self._send_card("leave", member, values, _ltheme,
-                                     channel=channel):
+                                     channel=channel, content=content):
                 return
 
         now = datetime.datetime.now(datetime.timezone.utc)
@@ -290,10 +310,11 @@ class WelcomeCog(commands.Cog):
                 send_embed.set_image(url=f"attachment://{kind}.png")
 
             if test and interaction:
+                pv = preview_label + (("\n\n" + content) if content else "")
                 if send_embed is not None:
-                    await interaction.followup.send(content=preview_label, embed=send_embed, file=file)
+                    await interaction.followup.send(content=pv, embed=send_embed, file=file)
                 else:
-                    await interaction.followup.send(content=preview_label, file=file)
+                    await interaction.followup.send(content=pv, file=file)
             else:
                 ch = channel or self.bot.get_channel(self._welcome_channel_id)
                 if not ch:
@@ -327,9 +348,12 @@ class WelcomeCog(commands.Cog):
         if _wtheme and _wtheme.get("enabled"):
             values = {"name": member.display_name[:24],
                       "membercount": f"Member #{member_count}"}
+            content = _render_content(_wtheme.get("content_text"),
+                                      member.display_name, STORE_NAME,
+                                      member.mention, values["membercount"]) or member.mention
             if await self._send_card("welcome", member, values, _wtheme,
                                      channel=channel, test=test, interaction=interaction,
-                                     content=member.mention,
+                                     content=content,
                                      preview_label="Pratinjau kartu welcome:"):
                 return
 
@@ -377,9 +401,12 @@ class WelcomeCog(commands.Cog):
             values = {"name": member.display_name[:24]}
             if boost_n is not None:
                 values["membercount"] = f"{boost_n}x boost server"
+            content = _render_content(_btheme.get("content_text"),
+                                      member.display_name, STORE_NAME,
+                                      member.mention, values.get("membercount")) or member.mention
             if await self._send_card("boost", member, values, _btheme,
                                      channel=channel, test=test, interaction=interaction,
-                                     content=member.mention,
+                                     content=content,
                                      preview_label="Pratinjau kartu boost:"):
                 return
 
@@ -430,8 +457,11 @@ class WelcomeCog(commands.Cog):
         values = {"name": member.display_name[:24]}
         if remain is not None:
             values["membercount"] = f"Tersisa {remain} member"
+        content = _render_content(_ltheme.get("content_text"),
+                                  member.display_name, STORE_NAME,
+                                  member.mention, values.get("membercount"))
         await self._send_card("leave", member, values, _ltheme,
-                              test=True, interaction=interaction,
+                              test=True, interaction=interaction, content=content,
                               preview_label="Pratinjau kartu leave:")
 
 

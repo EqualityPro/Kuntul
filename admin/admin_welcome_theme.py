@@ -223,6 +223,7 @@ def page_theme():
     enabled_attr = "checked" if theme.get("enabled") else ""
     embed_enabled_attr = "checked" if theme.get("embed", {}).get("enabled") else ""
     embed_color = theme.get("embed", {}).get("color", "#5865F2")
+    content_text_val = (theme.get("content_text") or "").replace('"', "&quot;")
     presets_json = json.dumps(card_presets.presets_for(kind))
     default_json = json.dumps(wtheme.default_theme(kind))
 
@@ -293,6 +294,13 @@ def page_theme():
         <label>Warna Garis Embed</label>
         <input type="color" id="embedColor" value="{embed_color}"
           oninput="if(!theme.embed)theme.embed={{}};theme.embed.color=this.value;markDirty();">
+      </div>
+      <div class="form-group">
+        <label>Teks di atas kartu (opsional)</label>
+        <input type="text" id="contentText" value="{content_text_val}" maxlength="300"
+          oninput="theme.content_text=this.value;markDirty();" style="width:100%;"
+          placeholder="mis. Selamat datang {{name}} di {{store}}!">
+        <div style="font-size:.78rem;color:var(--muted);margin-top:.3rem;">Tampil sebagai teks biasa di ATAS embed/kartu. Placeholder: <b>{{name}}</b>, <b>{{store}}</b>, <b>{{mention}}</b> (ping member), <b>{{count}}</b>. Kosongkan = pakai default (mention member).</div>
       </div>
       <div id="cfgWarn" style="display:none;margin:0 0 .8rem;padding:.55rem .7rem;border-radius:8px;
         background:rgba(240,180,40,.12);border:1px solid rgba(240,180,40,.4);color:var(--warning);font-size:.8rem;"></div>
@@ -484,6 +492,7 @@ function resetTheme(){{
     theme=d.theme; document.getElementById('cardEnabled').checked=!!theme.enabled;
     var ee=document.getElementById('embedEnabled'); if(ee) ee.checked=!!(theme.embed&&theme.embed.enabled);
     var ec=document.getElementById('embedColor'); if(ec&&theme.embed) ec.value=theme.embed.color;
+    var ct=document.getElementById('contentText'); if(ct) ct.value=theme.content_text||'';
     renderBoxes(); renderControls(); refreshPreview(); setOk('Direset ke default.'); }});
 }}
 function uploadFont(){{
