@@ -153,16 +153,18 @@ class TopSpender(commands.Cog):
 
         try:
             if card is not None:
-                # Mode gambar: kirim/edit pesan dengan attachment kartu.
+                # Mode gambar: kirim/edit pesan dengan attachment kartu (opsional
+                # dibungkus embed bila diaktifkan admin).
+                emb = self._topspender_embed()
                 if self._message_id:
                     try:
                         msg = await channel.fetch_message(self._message_id)
-                        await msg.edit(content=None, embed=None, attachments=[card])
+                        await msg.edit(content=None, embed=emb, attachments=[card])
                         await self._update_roles(spenders, channel.guild)
                         return
                     except discord.NotFound:
                         self._message_id = None
-                msg = await channel.send(file=card)
+                msg = await channel.send(embed=emb, file=card)
                 self._message_id = msg.id
                 _set_setting("topspender_message_id", str(msg.id))
                 await self._update_roles(spenders, channel.guild)
@@ -348,6 +350,23 @@ class TopSpender(commands.Cog):
             return None
         return discord.File(buf, filename="topspender.png")
 
+    def _topspender_embed(self):
+        """discord.Embed pembungkus kartu Top Spender (garis warna + gambar) bila
+        mode embed diaktifkan admin di panel; None bila tidak."""
+        try:
+            e = (tstheme.load_theme().get("embed") or {})
+            if not e.get("enabled"):
+                return None
+            try:
+                ci = int(str(e.get("color") or "#F0C04A").lstrip("#"), 16)
+            except (TypeError, ValueError):
+                ci = 0xF0C04A
+            emb = discord.Embed(color=ci)
+            emb.set_image(url="attachment://topspender.png")
+            return emb
+        except Exception:
+            return None
+
     # ── Slash commands ────────────────────────
 
     @app_commands.command(name="topspender", description="Lihat leaderboard top spender bulan ini")
@@ -358,7 +377,7 @@ class TopSpender(commands.Cog):
         month_name = datetime.date(now.year, now.month, 1).strftime("%B %Y")
         card = await self._build_leaderboard_file(spenders, month_name, interaction.guild)
         if card is not None:
-            await interaction.followup.send(file=card)
+            await interaction.followup.send(embed=self._topspender_embed(), file=card)
         else:
             embed = self._build_embed(spenders, month_name, interaction.guild)
             await interaction.followup.send(embed=embed)

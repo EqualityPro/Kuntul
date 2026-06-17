@@ -45,6 +45,7 @@ def default_theme() -> dict:
         "show_avatars": True,        # top-3 pakai foto profil + medali
         "bg_color1": "#1B1E27",      # gradien latar (atas) bila tanpa background
         "bg_color2": "#0E1015",      # gradien latar (bawah)
+        "embed": {"enabled": False, "color": "#F0C04A"},  # bungkus kartu dalam embed
         "colors": dict(_DEFAULT_COLORS),
     }
 
@@ -70,6 +71,11 @@ def merge_theme(raw) -> dict:
     theme["font_file"] = ff if (isinstance(ff, str) and ff.strip()) else None
     theme["bg_color1"] = _base.valid_hex(raw.get("bg_color1"), theme["bg_color1"])
     theme["bg_color2"] = _base.valid_hex(raw.get("bg_color2"), theme["bg_color2"])
+
+    raw_embed = raw.get("embed") if isinstance(raw.get("embed"), dict) else {}
+    theme["embed"]["enabled"] = bool(raw_embed.get("enabled", theme["embed"]["enabled"]))
+    theme["embed"]["color"] = _base.valid_hex(raw_embed.get("color", theme["embed"]["color"]),
+                                              theme["embed"]["color"])
 
     rc = raw.get("colors") if isinstance(raw.get("colors"), dict) else {}
     for k in COLOR_KEYS:

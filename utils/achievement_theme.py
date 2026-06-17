@@ -33,6 +33,9 @@ MAX_TITLE_LEN = 40
 DEFAULT_THEME = {
     "panel_opacity": 150,          # 0-255, panel gelap di atas background
     "font_file": None,             # nama file font di data/ (None = font default)
+    # Bila enabled, kartu badge dibungkus embed (garis warna + gambar) saat
+    # dilampirkan ke log transaksi. Minimal: tanpa teks/thumbnail tambahan.
+    "embed": {"enabled": False, "color": "#F0C85A"},
     "elements": {
         "avatar": {"type": "avatar", "x": 56,  "y": 75,  "size": 150, "show": True, "ring_color": None},
         "title":  {"type": "text",   "x": 246, "y": 52,  "size": 26, "color": "#F0C85A", "bold": True,  "show": True, "text": DEFAULT_TITLE},
@@ -87,6 +90,11 @@ def merge_theme(raw) -> dict:
                                      theme["panel_opacity"])
     ff = raw.get("font_file")
     theme["font_file"] = ff if (isinstance(ff, str) and ff.strip()) else None
+
+    raw_embed = raw.get("embed") if isinstance(raw.get("embed"), dict) else {}
+    theme["embed"]["enabled"] = bool(raw_embed.get("enabled", theme["embed"]["enabled"]))
+    theme["embed"]["color"] = _valid_hex(raw_embed.get("color", theme["embed"]["color"]),
+                                         theme["embed"]["color"])
 
     raw_elems = raw.get("elements") if isinstance(raw.get("elements"), dict) else {}
     for key, base in theme["elements"].items():
