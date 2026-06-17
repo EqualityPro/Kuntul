@@ -177,6 +177,9 @@ def _build_default(kind) -> dict:
         "panel_opacity": 140,        # 0-255, panel gelap di atas background
         "font_file": None,           # nama file font di data/ (None = font default)
         "canvas": list(CANVAS[kind]),  # penanda ukuran kanvas tema ini dibuat
+        # Teks "content" di ATAS embed/kartu (editable, placeholder {name}/{store}/
+        # {mention}/{count}). Kosong = pakai default (mention member).
+        "content_text": "",
         # Bila enabled, gambar kartu dibungkus dalam embed (garis warna + gambar).
         # Sengaja minimal: tanpa judul/deskripsi/thumbnail (teks & foto profil
         # sudah ada di gambar kartu).
@@ -240,6 +243,10 @@ def merge_theme(raw, kind="welcome") -> dict:
     theme["embed"]["enabled"] = bool(raw_embed.get("enabled", theme["embed"]["enabled"]))
     theme["embed"]["color"] = _valid_hex(raw_embed.get("color", theme["embed"]["color"]),
                                          theme["embed"]["color"])
+
+    ct = raw.get("content_text")
+    if isinstance(ct, str):
+        theme["content_text"] = ct.strip()[:300]
 
     raw_elems = raw.get("elements") if isinstance(raw.get("elements"), dict) else {}
     for key, base in theme["elements"].items():
