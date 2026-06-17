@@ -1019,6 +1019,102 @@ document.addEventListener('keydown',function(e){
 </html>"""
 
 
+# Enhancement bersama untuk SEMUA editor kartu drag-drop (Profil, Badge, Kartu
+# welcome/boost/leave, Testimoni, Kartu Umum). Disuntik di setiap halaman lewat
+# render_page; aktif HANYA bila ada elemen #stage (halaman editor kartu), jadi
+# no-op di halaman lain. Dua fitur:
+#   1) Tiap slider (range) di panel editor dapat kotak ANGKA yang bisa diketik &
+#      tersinkron dua arah -> set nilai presisi (mis. ukuran 251) & seragam antar
+#      kartu.
+#   2) GARIS BANTU di kanvas: garis tengah (vertikal+horizontal) + rule-of-thirds,
+#      bisa di-toggle, untuk membantu menilai center / posisi elemen.
+# Catatan: hanya pakai kurung kurawal tunggal agar aman dari Jinja
+# (render_template_string).
+_EDITOR_ENHANCE_HTML = """
+<style>
+.kc-guides{ position:absolute; inset:0; pointer-events:none; z-index:2; }
+.kc-guide{ position:absolute; pointer-events:none; }
+.kc-guide.v{ top:0; bottom:0; border-left:1px dashed rgba(255,255,255,.45); }
+.kc-guide.h{ left:0; right:0; border-top:1px dashed rgba(255,255,255,.45); }
+.kc-guide.center{ border-color:rgba(64,196,255,.95); }
+#stage:not(.kc-on) .kc-guides{ display:none; }
+#stage .el-box{ z-index:10; }
+.kc-row{ display:flex; gap:.5rem; align-items:center; }
+.kc-row input[type=range]{ flex:1; min-width:0; }
+.kc-num{ width:70px; flex:0 0 auto; }
+.kc-guidebar{ display:flex; gap:.4rem; align-items:center; font-size:.78rem; color:var(--muted); margin:.5rem 0 0; }
+.kc-guidebar input{ width:auto; }
+</style>
+<script>
+(function(){
+  function ready(fn){ if(document.readyState!=='loading'){ fn(); } else { document.addEventListener('DOMContentLoaded', fn); } }
+  ready(function(){
+    var stage = document.getElementById('stage');
+    if(!stage){ return; }
+
+    // ---- Garis bantu (tengah + rule-of-thirds) ----
+    var gw = document.createElement('div');
+    gw.className = 'kc-guides';
+    var lines = [['v','center','left:50%'],['h','center','top:50%'],
+                 ['v','','left:33.333%'],['v','','left:66.666%'],
+                 ['h','','top:33.333%'],['h','','top:66.666%']];
+    lines.forEach(function(g){
+      var d = document.createElement('div');
+      d.className = 'kc-guide ' + g[0] + (g[1] ? (' ' + g[1]) : '');
+      d.style.cssText += g[2] + ';';
+      gw.appendChild(d);
+    });
+    stage.appendChild(gw);
+    stage.classList.add('kc-on');
+
+    var bar = document.createElement('div');
+    bar.className = 'kc-guidebar';
+    bar.innerHTML = '<label style="display:flex;gap:.4rem;align-items:center;cursor:pointer;">' +
+      '<input type="checkbox" id="kcGuideTgl" checked> Garis bantu (tengah + 1/3)</label>';
+    stage.parentNode.insertBefore(bar, stage.nextSibling);
+    bar.querySelector('#kcGuideTgl').addEventListener('change', function(){
+      stage.classList.toggle('kc-on', this.checked);
+    });
+
+    // ---- Angka editable: setiap range -> range + input number tersinkron ----
+    function enhance(scope){
+      var ranges = (scope || document).querySelectorAll('.thm-col input[type=range]');
+      Array.prototype.forEach.call(ranges, function(r){
+        if(r.dataset.kcEnh){ return; }
+        r.dataset.kcEnh = '1';
+        var num = document.createElement('input');
+        num.type = 'number';
+        num.className = 'kc-num';
+        if(r.min !== ''){ num.min = r.min; }
+        if(r.max !== ''){ num.max = r.max; }
+        if(r.step !== ''){ num.step = r.step; }
+        num.value = r.value;
+        var row = document.createElement('div');
+        row.className = 'kc-row';
+        r.parentNode.insertBefore(row, r);
+        row.appendChild(r);
+        row.appendChild(num);
+        r.addEventListener('input', function(){ num.value = r.value; });
+        num.addEventListener('input', function(){
+          if(num.value === ''){ return; }
+          r.value = num.value;
+          r.dispatchEvent(new Event('input', {bubbles:true}));
+        });
+        num.addEventListener('change', function(){ num.value = r.value; });
+      });
+    }
+    enhance(document);
+
+    var ec = document.getElementById('elemControls');
+    if(ec && window.MutationObserver){
+      new MutationObserver(function(){ enhance(ec); }).observe(ec, {childList:true, subtree:true});
+    }
+  });
+})();
+</script>
+"""
+
+
 def render_page(content, **ctx):
     from flask import get_flashed_messages
     nav = ""
@@ -1144,7 +1240,7 @@ def render_page(content, **ctx):
         for cat, msg in msgs:
             flash_html += f'<li class="flash flash-{cat}">{msg}</li>'
         flash_html += '</ul>'
-    html = BASE.replace("NAVPLACEHOLDER", nav).replace("FLASHPLACEHOLDER", flash_html).replace("CONTENTPLACEHOLDER", content).replace("BRANDPLACEHOLDER", ADMIN_BRAND)
+    html = BASE.replace("NAVPLACEHOLDER", nav).replace("FLASHPLACEHOLDER", flash_html).replace("CONTENTPLACEHOLDER", content + _EDITOR_ENHANCE_HTML).replace("BRANDPLACEHOLDER", ADMIN_BRAND)
     return render_template_string(html, **ctx)
 
 
