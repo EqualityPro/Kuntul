@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 # ─────────────────────────────────────────────
 from utils.config import STORE_NAME
 MOBILE_GAME_CHANNEL_ID = int(os.getenv("MOBILE_GAME_CHANNEL_ID", "0"))
-SEEN_MOBILE_FILE = Path("data/seen_mobile_games.json")
+SEEN_MOBILE_FILE = Path(__file__).resolve().parent.parent / "data" / "seen_mobile_games.json"
 
 GAMERPOWER_API = "https://www.gamerpower.com/api/filter?platform=android.ios&type=game"
 

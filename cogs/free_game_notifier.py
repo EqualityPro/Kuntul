@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 # ─────────────────────────────────────────────
 from utils.config import STORE_NAME
 FREE_GAME_CHANNEL_ID = int(os.getenv("FREE_GAME_CHANNEL_ID", "0"))  # ID channel Discord
-SEEN_GAMES_FILE = Path("data/seen_games.json")  # file penyimpanan game yang sudah dipost
+SEEN_GAMES_FILE = Path(__file__).resolve().parent.parent / "data" / "seen_games.json"  # absolut (anti re-send saat restart)
 
 # Warna embed per store
 STORE_COLORS = {

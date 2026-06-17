@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 # ─────────────────────────────────────────────
 from utils.config import STORE_NAME
 GENSHIN_CHANNEL_ID = int(os.getenv("GENSHIN_CHANNEL_ID", "0"))
-SEEN_GENSHIN_FILE  = Path("data/seen_genshin.json")
+SEEN_GENSHIN_FILE  = Path(__file__).resolve().parent.parent / "data" / "seen_genshin.json"
 
 BASE_URL = "https://api.ennead.cc/mihoyo/genshin"
 
