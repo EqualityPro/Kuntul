@@ -40,9 +40,9 @@ THEME_KEYS = {
 
 # Ukuran kanvas per jenis (banner lebar; ukuran standar welcome-card).
 CANVAS = {
-    "welcome": (1024, 450),
-    "boost": (1024, 450),
-    "leave": (1024, 450),
+    "welcome": (1024, 460),
+    "boost": (1024, 460),
+    "leave": (1024, 460),
 }
 
 # Ukuran kanvas LAMA (sebelum diperbesar). Koordinat default & tema tersimpan

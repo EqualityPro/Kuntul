@@ -26,7 +26,7 @@ THEME_KEY = "rating_card_theme"
 
 # Ukuran kanvas kartu testimoni (banner lebar; ukuran standar welcome-card).
 RATING_W = 1024
-RATING_H = 450
+RATING_H = 460
 
 # Ukuran kanvas LAMA (sebelum diperbesar). Default & tema tersimpan yang dibuat
 # pada ukuran ini diskalakan proporsional ke RATING_W x RATING_H saat ini.
