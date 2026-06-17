@@ -244,6 +244,8 @@ def page_theme():
     has_bg_json = json.dumps(_bg_path() is not None)
     has_icon_json = json.dumps(_icon_path() is not None)
     enabled_attr = "checked" if theme.get("enabled") else ""
+    embed_enabled_attr = "checked" if theme.get("embed", {}).get("enabled") else ""
+    embed_color = theme.get("embed", {}).get("color", "#3DD68C")
     presets_json = json.dumps(card_presets.presets_for("general"))
     default_json = json.dumps(gcthemelib.default_theme())
     cw, ch = gcthemelib.GENERAL_W, gcthemelib.GENERAL_H
@@ -286,6 +288,17 @@ def page_theme():
           Aktifkan kartu umum (gambar)
         </label>
         <div style="font-size:.78rem;color:var(--muted);margin-top:.3rem;">Jika aktif, kartu ini dilampirkan ke log transaksi tiap order selesai yang TIDAK membuka badge baru. Jika nonaktif, perilaku lama dipakai (tanpa kartu).</div>
+      </div>
+      <div class="form-group" style="border:1px solid var(--border);border-radius:10px;padding:.7rem .8rem;">
+        <label style="display:flex;align-items:center;gap:.5rem;">
+          <input type="checkbox" id="embedEnabled" {embed_enabled_attr}
+            onchange="if(!theme.embed)theme.embed={{}};theme.embed.enabled=this.checked;markDirty();" style="width:auto;">
+          Tampilkan kartu di dalam embed
+        </label>
+        <div style="font-size:.78rem;color:var(--muted);margin:.3rem 0 .6rem;">Bungkus kartu umum dengan embed bergaris warna (ala bot Koya). Pratinjau di sini hanya menampilkan gambarnya.</div>
+        <label>Warna Garis Embed</label>
+        <input type="color" id="embedColor" value="{embed_color}"
+          oninput="if(!theme.embed)theme.embed={{}};theme.embed.color=this.value;markDirty();">
       </div>
       <div id="cfgWarn" style="display:none;margin:0 0 .8rem;padding:.55rem .7rem;border-radius:8px;
         background:rgba(240,180,40,.12);border:1px solid rgba(240,180,40,.4);color:var(--warning);font-size:.8rem;"></div>
@@ -517,6 +530,8 @@ function resetTheme(){{
   if(!confirm('Kembalikan ke tema default?')) return;
   fetch('/general-card/reset',{{method:'POST'}}).then(r=>r.json()).then(function(d){{
     theme=d.theme; document.getElementById('cardEnabled').checked=!!theme.enabled;
+    var ee=document.getElementById('embedEnabled'); if(ee) ee.checked=!!(theme.embed&&theme.embed.enabled);
+    var ec2=document.getElementById('embedColor'); if(ec2&&theme.embed) ec2.value=theme.embed.color;
     renderBoxes(); renderControls(); refreshPreview(); setOk('Direset ke default.'); }});
 }}
 function uploadFont(){{

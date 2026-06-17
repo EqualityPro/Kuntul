@@ -253,6 +253,8 @@ def page_theme():
     bg_tiers_json = json.dumps(_tiers_with_bg())
     tiers_json = json.dumps(VALID_TIERS)
     has_icon_json = json.dumps(_icon_path() is not None)
+    embed_enabled_attr = "checked" if theme.get("embed", {}).get("enabled") else ""
+    embed_color = theme.get("embed", {}).get("color", "#F0C85A")
 
     content = f"""
 <div class="page-header">
@@ -286,6 +288,17 @@ def page_theme():
       <button type="button" class="thm-tab" data-t="aset" onclick="showThmTab('aset')">Aset</button>
     </div>
     <div class="thm-panel" id="thm-tampilan" hidden>
+    <div class="form-group" style="border:1px solid var(--border);border-radius:10px;padding:.7rem .8rem;">
+      <label style="display:flex;align-items:center;gap:.5rem;">
+        <input type="checkbox" id="embedEnabled" {embed_enabled_attr}
+          onchange="if(!theme.embed)theme.embed={{}};theme.embed.enabled=this.checked;markDirty();" style="width:auto;">
+        Tampilkan kartu di dalam embed
+      </label>
+      <div style="font-size:.78rem;color:var(--muted);margin:.3rem 0 .6rem;">Bungkus kartu badge dengan embed bergaris warna (ala bot Koya). Pratinjau di sini hanya menampilkan gambarnya.</div>
+      <label>Warna Garis Embed</label>
+      <input type="color" id="embedColor" value="{embed_color}"
+        oninput="if(!theme.embed)theme.embed={{}};theme.embed.color=this.value;markDirty();">
+    </div>
     <div class="form-group">
       <label>Nama Contoh (pratinjau)</label>
       <input type="text" id="sampleName" maxlength="22" placeholder="ContohMember"
@@ -490,7 +503,10 @@ function saveTheme(){{
 function resetTheme(){{
   if(!confirm('Kembalikan ke tema default?')) return;
   fetch('/badge-theme/reset',{{method:'POST'}}).then(r=>r.json()).then(function(d){{
-    theme=d.theme; renderBoxes(); renderControls(); refreshPreview(); setOk('Direset ke default.'); }});
+    theme=d.theme;
+    var ee=document.getElementById('embedEnabled'); if(ee) ee.checked=!!(theme.embed&&theme.embed.enabled);
+    var ec2=document.getElementById('embedColor'); if(ec2&&theme.embed) ec2.value=theme.embed.color;
+    renderBoxes(); renderControls(); refreshPreview(); setOk('Direset ke default.'); }});
 }}
 function uploadFont(){{
   var f=document.getElementById('fontFile').files[0];

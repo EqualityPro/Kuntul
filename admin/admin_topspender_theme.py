@@ -200,6 +200,8 @@ def page_card():
     cur_font = theme.get("font_file") or "(default sistem)"
     enabled_attr = "checked" if theme.get("enabled") else ""
     avatars_attr = "checked" if theme.get("show_avatars") else ""
+    embed_enabled_attr = "checked" if theme.get("embed", {}).get("enabled") else ""
+    embed_color = theme.get("embed", {}).get("color", "#F0C04A")
 
     content = f"""
 <style>
@@ -231,6 +233,17 @@ def page_card():
         Aktifkan leaderboard sebagai gambar
       </label>
       <div style="font-size:.78rem;color:var(--muted);margin-top:.3rem;">Jika nonaktif, leaderboard tetap diposting sebagai embed teks klasik.</div>
+    </div>
+    <div class="form-group" style="border:1px solid var(--border);border-radius:10px;padding:.7rem .8rem;">
+      <label style="display:flex;align-items:center;gap:.5rem;">
+        <input type="checkbox" id="embedEnabled" {embed_enabled_attr}
+          onchange="if(!theme.embed)theme.embed={{}};theme.embed.enabled=this.checked;markDirty();" style="width:auto;">
+        Tampilkan kartu di dalam embed
+      </label>
+      <div style="font-size:.78rem;color:var(--muted);margin:.3rem 0 .6rem;">Bungkus kartu leaderboard dengan embed bergaris warna (ala bot Koya). Hanya berlaku saat mode gambar aktif.</div>
+      <label>Warna Garis Embed</label>
+      <input type="color" id="embedColor" value="{embed_color}"
+        oninput="if(!theme.embed)theme.embed={{}};theme.embed.color=this.value;markDirty();">
     </div>
     <div class="form-group">
       <label style="display:flex;align-items:center;gap:.5rem;">

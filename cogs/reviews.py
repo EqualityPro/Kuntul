@@ -37,6 +37,26 @@ from utils import review_text as rtext
 COLOR_REVIEW = 0xFFC107  # kuning/emas
 POLL_INTERVAL_SECONDS = 60
 
+
+def _card_embed(theme, filename, default_color="#5865F2"):
+    """discord.Embed pembungkus kartu (garis warna + set_image attachment) bila
+    `theme['embed']` diaktifkan admin; None bila tidak. Dipakai agar semua kartu
+    (badge, testimoni, kartu umum) seragam dengan opsi embed welcome/boost/leave.
+    """
+    try:
+        e = (theme or {}).get("embed") or {}
+        if not e.get("enabled"):
+            return None
+        try:
+            ci = int(str(e.get("color") or default_color).lstrip("#"), 16)
+        except (TypeError, ValueError):
+            ci = int(default_color.lstrip("#"), 16)
+        emb = discord.Embed(color=ci)
+        emb.set_image(url=f"attachment://{filename}")
+        return emb
+    except Exception:
+        return None
+
 # Role member loyal (didapat otomatis dari transaksi). Dipakai gating /riwayat.
 # Konsisten dengan cog lain yang assign role by-name saat transaksi selesai.
 # (ROYAL_CUSTOMER_ROLE_NAME diimpor dari utils.config supaya bisa diatur .env.)
@@ -722,23 +742,33 @@ class Reviews(commands.Cog):
                     print(f"[Reviews] badge attach error {uid}: {e}")
 
             if badge_file is not None:
-                await msg.edit(content=new_text, attachments=[badge_file])
+                try:
+                    from utils import achievement_theme as _achthemelib
+                    b_embed = _card_embed(_achthemelib.load_theme(),
+                                          "achievement.png", "#F0C85A")
+                except Exception:
+                    b_embed = None
+                await msg.edit(content=new_text, embed=b_embed, attachments=[badge_file])
                 achstate.mark_announced(uid, badge_names)
             else:
                 # Tidak ada badge baru: bila kartu umum "Order Selesai" diaktifkan
                 # admin (/general-card), lampirkan ke pesan log yang sama supaya
                 # buyer tetap menerima kartu walau belum mencapai milestone.
                 general_file = None
+                g_embed = None
                 if uid:
                     try:
                         from utils import general_card_theme as gcthemelib
-                        if gcthemelib.load_theme().get("enabled"):
+                        gtheme = gcthemelib.load_theme()
+                        if gtheme.get("enabled"):
                             general_file = await self._build_general_card_file(
                                 uid, tx, review["rating"])
+                            if general_file is not None:
+                                g_embed = _card_embed(gtheme, "order-selesai.png", "#3DD68C")
                     except Exception as e:
                         print(f"[Reviews] general card attach error {uid}: {e}")
                 if general_file is not None:
-                    await msg.edit(content=new_text, attachments=[general_file])
+                    await msg.edit(content=new_text, embed=g_embed, attachments=[general_file])
                 else:
                     await msg.edit(content=new_text)
         except Exception as e:
@@ -796,7 +826,8 @@ class Reviews(commands.Cog):
             card_file = await self._build_rating_card_file(review, member)
             if card_file is not None:
                 try:
-                    msg = await channel.send(file=card_file)
+                    r_embed = _card_embed(_rtheme, "rating.png", "#FFC107")
+                    msg = await channel.send(embed=r_embed, file=card_file)
                     rv.set_published(review_id, msg.id)
                     return
                 except Exception as e:

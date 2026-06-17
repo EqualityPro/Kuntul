@@ -69,6 +69,7 @@ _LEGACY_DEFAULT = {
     "enabled": False,              # False = tidak kirim kartu umum (perilaku lama)
     "panel_opacity": 150,          # 0-255, panel gelap di atas background
     "font_file": None,             # nama file font di data/ (None = font default)
+    "embed": {"enabled": False, "color": "#3DD68C"},  # bungkus kartu dalam embed
     "elements": {
         # ── Inti (tampil default) ──────────────────────────────────────────
         "avatar":  {"type": "avatar", "x": 60,  "y": 100, "size": 170, "show": True,  "ring_color": RING_DEFAULT},
@@ -222,6 +223,11 @@ def merge_theme(raw) -> dict:
                                      theme["panel_opacity"])
     ff = raw.get("font_file")
     theme["font_file"] = ff if (isinstance(ff, str) and ff.strip()) else None
+
+    raw_embed = raw.get("embed") if isinstance(raw.get("embed"), dict) else {}
+    theme["embed"]["enabled"] = bool(raw_embed.get("enabled", theme["embed"]["enabled"]))
+    theme["embed"]["color"] = _valid_hex(raw_embed.get("color", theme["embed"]["color"]),
+                                         theme["embed"]["color"])
 
     raw_elems = raw.get("elements") if isinstance(raw.get("elements"), dict) else {}
     for key, base in theme["elements"].items():
