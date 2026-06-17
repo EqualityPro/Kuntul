@@ -556,6 +556,113 @@ class Reviews(commands.Cog):
             print(f"[Reviews] render badge card error {user_id}: {e}")
             return None
 
+    async def _build_general_card_file(self, user_id, tx, rating):
+        """Render kartu umum "Order Selesai" -> discord.File (None bila gagal).
+
+        Merakit `values` (data dinamis dari transaksi + profil + top spender +
+        rating) lalu merender kartu. Dipakai saat order selesai tapi buyer TIDAK
+        membuka badge baru, dan kartu umum diaktifkan admin di panel
+        (/general-card). Elemen tambahan default tersembunyi; admin menampilkan
+        yang dipakai, jadi `values` boleh memuat semua kunci sekaligus.
+        """
+        try:
+            import datetime as _dt
+
+            def _rupiah(n):
+                try:
+                    return "Rp " + f"{int(n):,}".replace(",", ".")
+                except (TypeError, ValueError):
+                    return "Rp 0"
+
+            guild = self.bot.get_guild(GUILD_ID)
+            member = guild.get_member(user_id) if guild else None
+            user = member or self.bot.get_user(user_id)
+            name = (getattr(member, "display_name", None)
+                    or getattr(user, "name", None) or f"User {user_id}")
+            avatar = await self._fetch_avatar_bytes(user)
+
+            values = {"name": name}
+
+            # ── Dinamis dari transaksi ──
+            if tx.get("item"):
+                values["product"] = str(tx["item"])
+            lay = _pretty_layanan(tx.get("layanan"))
+            if lay and lay != "Order":
+                values["layanan"] = lay
+            if tx.get("nominal"):
+                values["harga"] = _rupiah(tx.get("nominal"))
+            if tx.get("qty"):
+                try:
+                    values["qty"] = f"{int(tx['qty'])}x"
+                except (TypeError, ValueError):
+                    pass
+            if tx.get("closed_at"):
+                try:
+                    values["tanggal"] = _dt.datetime.fromisoformat(
+                        str(tx["closed_at"])).strftime("%d/%m/%Y")
+                except Exception:
+                    pass
+            admin_id = tx.get("admin_id")
+            if admin_id:
+                am = guild.get_member(admin_id) if guild else None
+                au = am or self.bot.get_user(admin_id)
+                values["seller"] = (getattr(am, "display_name", None)
+                                    or getattr(au, "name", None) or f"Admin {admin_id}")
+            if tx.get("id"):
+                values["order_no"] = f"#{tx['id']}"
+            if rating:
+                try:
+                    r = max(0, min(5, int(rating)))
+                    values["rating"] = f"{r}/5"
+                    values["_stars_filled"] = r
+                except (TypeError, ValueError):
+                    pass
+
+            # ── Dinamis dari profil member ──
+            try:
+                data = profilelib.get_member_profile(user_id)
+                if data.get("tier"):
+                    values["tier"] = str(data["tier"]).upper()
+                if data.get("level") is not None:
+                    values["level"] = f"Level {data['level']}"
+                values["total_orders"] = f"Order ke-{data.get('total_orders', 0)}"
+                values["total_spent"] = "Total " + _rupiah(data.get("total_spent", 0))
+                values["spent_month"] = "Bulan ini " + _rupiah(data.get("spent_month", 0))
+                values["total_reviews"] = f"{data.get('total_reviews', 0)} ulasan"
+                if data.get("first_order"):
+                    try:
+                        values["member_since"] = "Member sejak " + _dt.datetime.fromisoformat(
+                            str(data["first_order"])).strftime("%b %Y")
+                    except Exception:
+                        pass
+            except Exception as e:
+                print(f"[Reviews] general card profil {user_id}: {e}")
+
+            # ── Badge Top Spender ──
+            try:
+                from cogs.top_spender import top_spender_badge
+                badge = top_spender_badge(user_id)
+                if badge:
+                    values["topspender"] = str(badge)
+            except Exception:
+                pass
+
+            from cogs.profile import (render_general_card, _general_bg_path,
+                                      _general_icon_path)
+            from utils import general_card_theme as gcthemelib
+            theme = gcthemelib.load_theme()
+            bg_path = _general_bg_path()
+            icon_path = _general_icon_path()
+            buf = await self.bot.loop.run_in_executor(
+                None, lambda: render_general_card(
+                    avatar, values=values, theme=theme,
+                    bg_path=bg_path, icon_path=icon_path)
+            )
+            return discord.File(buf, filename="order-selesai.png")
+        except Exception as e:
+            print(f"[Reviews] render general card error {user_id}: {e}")
+            return None
+
     # ── Update pesan log transaksi setelah rating ──
     async def update_success_log(self, review_id: int):
         """Edit pesan log 'transaksi berhasil' agar status garansi jadi 'Aktif'.
@@ -618,7 +725,22 @@ class Reviews(commands.Cog):
                 await msg.edit(content=new_text, attachments=[badge_file])
                 achstate.mark_announced(uid, badge_names)
             else:
-                await msg.edit(content=new_text)
+                # Tidak ada badge baru: bila kartu umum "Order Selesai" diaktifkan
+                # admin (/general-card), lampirkan ke pesan log yang sama supaya
+                # buyer tetap menerima kartu walau belum mencapai milestone.
+                general_file = None
+                if uid:
+                    try:
+                        from utils import general_card_theme as gcthemelib
+                        if gcthemelib.load_theme().get("enabled"):
+                            general_file = await self._build_general_card_file(
+                                uid, tx, review["rating"])
+                    except Exception as e:
+                        print(f"[Reviews] general card attach error {uid}: {e}")
+                if general_file is not None:
+                    await msg.edit(content=new_text, attachments=[general_file])
+                else:
+                    await msg.edit(content=new_text)
         except Exception as e:
             print(f"[Reviews] update success log error: {e}")
 

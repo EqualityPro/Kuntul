@@ -645,6 +645,170 @@ def render_rating_card(name: str, avatar_bytes, *, stars: str, review=None,
     return buf
 
 
+GENERAL_BG_BASE = "generalcardbg"
+
+
+def _general_bg_path():
+    """Path background kartu umum "Order Selesai" (atau None). Di-upload via
+    panel: data/generalcardbg.<ext>. Satu background global."""
+    for ext in ALLOWED_IMAGE_EXTS:
+        path = os.path.join(DATA_DIR, GENERAL_BG_BASE + ext)
+        if os.path.exists(path):
+            return path
+    return None
+
+
+GENERAL_ICON_BASE = "general_icon"
+
+
+def _general_icon_path():
+    """Path logo/ikon kartu umum (atau None). Di-upload via panel:
+    data/general_icon.<ext>. Satu logo global (elemen 'icon')."""
+    for ext in ALLOWED_IMAGE_EXTS:
+        path = os.path.join(DATA_DIR, GENERAL_ICON_BASE + ext)
+        if os.path.exists(path):
+            return path
+    return None
+
+
+def render_general_card(avatar_bytes, *, values=None, theme=None,
+                        bg_path=None, icon_path=None) -> io.BytesIO:
+    """Render kartu umum "Order Selesai" -> PNG BytesIO. Murni Pillow.
+
+    Dipakai cogs/reviews.update_success_log saat order selesai tapi buyer TIDAK
+    membuka badge baru (dan kartu umum diaktifkan di panel). Data-driven: setiap
+    elemen di `theme` (utils.general_card_theme) digambar sesuai jenisnya.
+
+    `values` : dict nilai elemen DINAMIS (mis. {"name": "Budi",
+               "product": "Robux 1000", "harga": "Rp 50.000",
+               "_stars_filled": 5, ...}). Elemen teks dinamis yang tidak
+               ada/None/"" di `values` tidak digambar. `_stars_filled` (int)
+               mengisi elemen 'stars'.
+    `theme`  : dict tema (posisi/warna/ukuran/visibilitas/opacity/font kustom).
+    `bg_path`: background kustom (cover-fit GENERAL_W×GENERAL_H); None = gradien.
+    `icon_path`: gambar logo/ikon untuk elemen 'icon'; bila None elemen dilewati.
+
+    Teks polos (font bundel tak render emoji warna).
+    """
+    from utils import general_card_theme as gcthemelib
+    W, H = gcthemelib.GENERAL_W, gcthemelib.GENERAL_H
+    values = values or {}
+
+    theme = gcthemelib.merge_theme(theme)
+    el = theme["elements"]
+    font_file = theme.get("font_file")
+
+    def fnt(size, bold=False):
+        return _font(size, bold=bold, font_file=font_file)
+
+    def rgb(e, fallback):
+        try:
+            return gcthemelib.hex_to_rgb(e["color"])
+        except Exception:
+            return fallback
+
+    bg = None
+    if bg_path:
+        try:
+            src = Image.open(bg_path).convert("RGBA")
+            sw, sh = src.size
+            scale = max(W / sw, H / sh)
+            nw, nh = int(sw * scale), int(sh * scale)
+            src = src.resize((nw, nh))
+            left, top = (nw - W) // 2, (nh - H) // 2
+            bg = src.crop((left, top, left + W, top + H))
+        except Exception:
+            bg = None
+    if bg is None:
+        bg = _gradient((24, 40, 32), (30, 74, 52)).resize((W, H)).convert("RGBA")
+    card = bg
+
+    panel = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    pd = ImageDraw.Draw(panel)
+    _rounded(pd, (20, 20, W - 20, H - 20), 26, (0, 0, 0, int(theme["panel_opacity"])))
+    card = Image.alpha_composite(card, panel)
+    d = ImageDraw.Draw(card)
+
+    for key in gcthemelib.ELEMENT_ORDER:
+        e = el.get(key)
+        if not e or not e.get("show", True):
+            continue
+        typ = e.get("type")
+        ex, ey = int(e["x"]), int(e["y"])
+
+        if typ == "avatar":
+            ring = gcthemelib.hex_to_rgb(e.get("ring_color") or gcthemelib.RING_DEFAULT)
+            av_size = int(e["size"])
+            d.ellipse((ex - 6, ey - 6, ex + av_size + 6, ey + av_size + 6), fill=ring + (255,))
+            if avatar_bytes:
+                try:
+                    im = Image.open(io.BytesIO(avatar_bytes))
+                    circ = _circle_avatar(im, av_size)
+                    card.paste(circ, (ex, ey), circ)
+                except Exception:
+                    d.ellipse((ex, ey, ex + av_size, ey + av_size), fill=(60, 60, 70, 255))
+            else:
+                d.ellipse((ex, ey, ex + av_size, ey + av_size), fill=(60, 60, 70, 255))
+            continue
+
+        if typ == "icon":
+            if not icon_path:
+                continue
+            try:
+                isz = int(e["size"])
+                src = Image.open(icon_path).convert("RGBA")
+                src.thumbnail((isz, isz))
+                iw, ih = src.size
+                ox, oy = ex + (isz - iw) // 2, ey + (isz - ih) // 2
+                mask = Image.new("L", (iw, ih), 0)
+                ImageDraw.Draw(mask).rounded_rectangle(
+                    (0, 0, iw, ih), radius=max(8, isz // 8), fill=255)
+                card.paste(src, (ox, oy), mask)
+            except Exception:
+                pass
+            continue
+
+        if typ == "stars":
+            filled = values.get("_stars_filled")
+            if filled is None:
+                continue
+            try:
+                filled = max(0, min(5, int(filled)))
+            except (TypeError, ValueError):
+                continue
+            _draw_stars(d, ex, ey, int(e["size"]), filled, 5, rgb(e, (255, 210, 77)))
+            continue
+
+        # Elemen teks. Dinamis -> values[key]; statis -> e["text"].
+        if key in values:
+            val = values.get(key)
+            if val is None or str(val) == "":
+                continue
+            txt = str(val)
+        elif "text" in e:
+            txt = str(e.get("text") or "")
+            if not txt:
+                continue
+        else:
+            continue  # dinamis tanpa nilai -> dilewati
+
+        color = rgb(e, (255, 255, 255))
+        if e.get("wrap"):
+            size = int(e["size"])
+            wfont = fnt(size, e.get("bold", False))
+            max_w = max(80, W - ex - 40)
+            line_h = size + 8
+            for i, line in enumerate(_wrap_text(d, txt, wfont, max_w, max_lines=3)):
+                d.text((ex, ey + i * line_h), line, font=wfont, fill=color)
+        else:
+            d.text((ex, ey), txt[:60], font=fnt(e["size"], e.get("bold", False)), fill=color)
+
+    buf = io.BytesIO()
+    card.convert("RGB").save(buf, format="PNG")
+    buf.seek(0)
+    return buf
+
+
 # Gradien latar default per jenis kartu notifikasi (dipakai bila tak ada
 # background kustom). Senada dengan warna ring/aksen tiap jenis.
 NOTIFY_GRADIENTS = {

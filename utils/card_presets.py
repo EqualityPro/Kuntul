@@ -46,6 +46,16 @@ PRESETS = {
         {"id": "dark", "name": "Dark Mono", "opacity": 185, "ring": "#FFFFFF",
          "colors": {"title": "#FFFFFF", "name": "#FFFFFF", "stars": "#E6E6E6", "review": "#C8CCD6"}},
     ],
+    "general": [
+        {"id": "hijau", "name": "Hijau Selesai (default)", "opacity": 150, "ring": "#3DD68C",
+         "colors": {"title": "#3DD68C", "name": "#FFFFFF", "message": "#E2E4EC", "product": "#9DE9C2"}},
+        {"id": "emas", "name": "Emas Kalem", "opacity": 150, "ring": "#F0C85A",
+         "colors": {"title": "#F0C85A", "name": "#FFFFFF", "message": "#E7E0CC", "product": "#F5E3B3"}},
+        {"id": "biru", "name": "Biru Sejuk", "opacity": 155, "ring": "#5C7AEA",
+         "colors": {"title": "#9DB4FF", "name": "#FFFFFF", "message": "#CAD6F2", "product": "#BBD0FF"}},
+        {"id": "dark", "name": "Dark Mono", "opacity": 185, "ring": "#FFFFFF",
+         "colors": {"title": "#FFFFFF", "name": "#FFFFFF", "message": "#C8CCD6", "product": "#E6E6E6"}},
+    ],
 }
 
 

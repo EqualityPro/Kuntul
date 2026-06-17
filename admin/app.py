@@ -44,6 +44,7 @@ from admin.admin_profile_theme import theme_bp
 from admin.admin_achievement_theme import badge_theme_bp
 from admin.admin_welcome_theme import welcome_theme_bp
 from admin.admin_rating_theme import rating_theme_bp
+from admin.admin_general_card import general_card_bp
 from admin.admin_topspender_theme import topspender_card_bp
 from admin.admin_catalog_thumbnail import catalog_thumb_bp
 from admin.admin_lainnya_emoji import lainnya_emoji_bp
@@ -93,6 +94,7 @@ app.register_blueprint(theme_bp)
 app.register_blueprint(badge_theme_bp)
 app.register_blueprint(welcome_theme_bp)
 app.register_blueprint(rating_theme_bp)
+app.register_blueprint(general_card_bp)
 app.register_blueprint(topspender_card_bp)
 app.register_blueprint(catalog_thumb_bp)
 app.register_blueprint(lainnya_emoji_bp)
@@ -920,6 +922,7 @@ var CMD_ITEMS=[
   {t:'Editor Profil',u:'/profil-theme'},{t:'Editor Badge',u:'/badge-theme'},
   {t:'Editor Kartu',u:'/card-theme'},
   {t:'Editor Testimoni',u:'/rating-theme'},
+  {t:'Editor Kartu Umum',u:'/general-card'},
   {t:'Media Katalog',u:'/catalog-thumbnails'},
   {t:'Emoji Katalog',u:'/lainnya/emoji'},
   {t:'Cek Self-Host',u:'/self-host-check'},
@@ -1077,6 +1080,7 @@ def render_page(content, **ctx):
     {_a("Editor Badge", "/badge-theme", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="6"/><path d="M8.5 13.5L7 22l5-3 5 3-1.5-8.5"/></svg>', "badge_theme_bp.page_theme")}
     {_a("Editor Kartu", "/card-theme", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 11l-3 3-2-2"/></svg>', "welcome_theme_bp.page_theme")}
     {_a("Editor Testimoni", "/rating-theme", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>', "rating_theme_bp.page_theme")}
+    {_a("Editor Kartu Umum", "/general-card", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/><path d="M9 14l2 2 4-4"/></svg>', "general_card_bp.page_theme")}
     {_a("Kartu Top Spender", "/topspender-card", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M5 4H3v2a3 3 0 0 0 3 3M19 4h2v2a3 3 0 0 1-3 3"/></svg>', "topspender_card_bp.page_card")}
     {_a("Media Katalog", "/catalog-thumbnails", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>', "catalog_thumb_bp.page")}
     {_a("Emoji Katalog", "/lainnya/emoji", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>', "lainnya_emoji_bp.page")}
